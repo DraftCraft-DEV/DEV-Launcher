@@ -99,7 +99,7 @@ One click downloads the newest version from the [latest release](https://github.
 | Linux (any distribution) | AppImage: [x86_64](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-x86_64.AppImage) · [ARM64 (aarch64)](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-aarch64.AppImage) |
 | Debian, Ubuntu 22.04 or later | .deb: [x86_64](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-x86_64.deb) · [ARM64 (aarch64)](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-aarch64.deb) |
 | Fedora, openSUSE, RHEL | .rpm: [x86_64](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-x86_64.rpm) · [ARM64 (aarch64)](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-aarch64.rpm) |
-| Arch Linux, Manjaro, EndeavourOS | pacman package: [x86_64](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-x86_64.pkg.tar.zst) · [ARM64 (aarch64)](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-aarch64.pkg.tar.zst) — or `dev-launcher-bin` from the AUR |
+| Arch Linux, Manjaro, EndeavourOS | pacman package: [x86_64](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-x86_64.pkg.tar.zst) · [ARM64 (aarch64)](https://github.com/DraftCraft-DEV/DEV-Launcher/releases/latest/download/dev-launcher-linux-aarch64.pkg.tar.zst) |
 
 The release page also has a plain `.tar.gz` for each Linux processor and `SHA256SUMS.txt`.
 
@@ -116,7 +116,7 @@ The release page also has a plain `.tar.gz` for each Linux processor and `SHA256
   and open it, and it offers to put itself in `~/Applications`, in the applications menu and on your
   `PATH` as `dev-launcher` (or to run without installing). Or install the package for your distribution:
   `sudo apt install ./dev-launcher-linux-x86_64.deb`, `sudo dnf install ./dev-launcher-linux-x86_64.rpm`,
-  `sudo pacman -U dev-launcher-linux-x86_64.pkg.tar.zst`, or `yay -S dev-launcher-bin`. On ARM, take
+  or `sudo pacman -U dev-launcher-linux-x86_64.pkg.tar.zst`. On ARM, take
   the `aarch64` file.
 
 ## What it does
