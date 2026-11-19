@@ -451,7 +451,11 @@ impl TrayApp {
             self.badged = badged;
             if let Some(t) = &self.tray {
                 let icon = tray_icon(badged);
-                let _ = if cfg!(target_os = "macos") { t.set_icon_templated(icon) } else { t.set_icon(icon) };
+                // Template images exist only on macOS (`cfg!` would still compile both branches).
+                #[cfg(target_os = "macos")]
+                let _ = t.set_icon_templated(icon);
+                #[cfg(not(target_os = "macos"))]
+                let _ = t.set_icon(icon);
                 let tip = if badged { format!("D.E.V. Launcher — {}", tr("Update available")) } else { "D.E.V. Launcher".into() };
                 let _ = t.set_tooltip(Some(tip));
             }
@@ -491,7 +495,14 @@ impl TrayApp {
     fn create(&mut self, menu: Menu) {
         let mut builder = TrayIconBuilder::new().with_id("dev-launcher").with_tooltip("D.E.V. Launcher").with_menu(Box::new(menu));
         if let Some(icon) = tray_icon(false) {
-            builder = if cfg!(target_os = "macos") { builder.with_icon_templated(icon) } else { builder.with_icon(icon) };
+            #[cfg(target_os = "macos")]
+            {
+                builder = builder.with_icon_templated(icon);
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                builder = builder.with_icon(icon);
+            }
         }
         if cfg!(windows) {
             // Windows' convention: a click opens the app, a right-click shows the menu.
