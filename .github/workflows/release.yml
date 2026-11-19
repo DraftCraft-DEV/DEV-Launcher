@@ -37,7 +37,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: v
         run: |
           version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
@@ -61,7 +61,7 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       ARCH: ${{ matrix.arch }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -102,7 +102,7 @@ jobs:
           chmod +x appimagetool
           APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool --no-appstream "$app" "dist/dev-launcher-linux-$ARCH.AppImage"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: linux-${{ matrix.arch }}
           path: dist/*
@@ -122,7 +122,7 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       ARCH: ${{ matrix.arch }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Clang (ring needs it on ARM64)
         if: matrix.arch == 'arm64'
@@ -152,7 +152,7 @@ jobs:
         shell: pwsh
         run: Copy-Item target\release\dev-launcher.exe "dist\dev-launcher-windows-$env:ARCH-setup.exe"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: windows-${{ matrix.arch }}
           path: dist/*
@@ -171,7 +171,7 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
@@ -230,7 +230,7 @@ jobs:
           fi
           codesign --verify --deep --strict --verbose=2 "$app"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -254,7 +254,7 @@ jobs:
             --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
           xcrun stapler staple dist/dev-launcher-macos-universal.dmg
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: macos-universal
           path: dist/*
@@ -271,8 +271,8 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
@@ -302,7 +302,7 @@ jobs:
           [[ "$VERSION" == *-alpha* || "$VERSION" == *-rc* ]] && flag="--prerelease"
           gh release create "$GITHUB_REF_NAME" dist/* --title "D.E.V. Launcher $VERSION" --generate-notes $flag
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: aur
           path: dist/PKGBUILD
@@ -315,7 +315,7 @@ jobs:
     env:
       AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: aur
       - name: Push dev-launcher-bin
