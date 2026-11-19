@@ -1,0 +1,53 @@
+# Builds the .deb, .rpm and Arch .pkg.tar.zst from the release binary.
+# Expects: VERSION (1.0.0-beta), NFPM_ARCH (amd64 | arm64), BIN (path to the binary).
+name: dev-launcher
+arch: ${NFPM_ARCH}
+platform: linux
+version: ${VERSION}
+version_schema: semver
+release: 1
+section: utils
+priority: optional
+maintainer: DraftCraft Engineering Ventures <noreply@github.com>
+vendor: DraftCraft Engineering Ventures
+homepage: https://github.com/DraftCraft-DEV/DEV-Launcher
+license: Apache-2.0
+description: |
+  D.E.V. Launcher installs, updates and opens the apps of DraftCraft
+  Engineering Ventures, picking the right build for this computer.
+
+contents:
+  - src: ${BIN}
+    dst: /usr/bin/dev-launcher
+    file_info: { mode: 0755 }
+  - src: packaging/linux/dev-launcher.desktop
+    dst: /usr/share/applications/dev-launcher.desktop
+  - src: assets/icons/app-icon-16.png
+    dst: /usr/share/icons/hicolor/16x16/apps/dev-launcher.png
+  - src: assets/icons/app-icon-32.png
+    dst: /usr/share/icons/hicolor/32x32/apps/dev-launcher.png
+  - src: assets/icons/app-icon-48.png
+    dst: /usr/share/icons/hicolor/48x48/apps/dev-launcher.png
+  - src: assets/icons/app-icon-64.png
+    dst: /usr/share/icons/hicolor/64x64/apps/dev-launcher.png
+  - src: assets/icons/app-icon-128.png
+    dst: /usr/share/icons/hicolor/128x128/apps/dev-launcher.png
+  - src: assets/icons/app-icon-256.png
+    dst: /usr/share/icons/hicolor/256x256/apps/dev-launcher.png
+  - src: assets/icons/app-icon-512.png
+    dst: /usr/share/icons/hicolor/512x512/apps/dev-launcher.png
+  - src: assets/brand/app-icon.svg
+    dst: /usr/share/icons/hicolor/scalable/apps/dev-launcher.svg
+  - src: LICENSE
+    dst: /usr/share/licenses/dev-launcher/LICENSE
+
+# X11 and Wayland libraries are loaded at run time; OpenGL draws the window.
+overrides:
+  deb:
+    depends: [libc6, libgl1, libegl1, libxkbcommon0, libx11-6, libxcursor1, libxrandr2, libxi6]
+    recommends: [libwayland-client0, libwayland-egl1, pkexec | policykit-1]
+  rpm:
+    depends: [libglvnd-glx, libglvnd-egl, libxkbcommon, libX11, libXcursor, libXrandr, libXi]
+    recommends: [libwayland-client, libwayland-egl, polkit]
+  archlinux:
+    depends: [glibc, libglvnd, libxkbcommon, libx11, libxcursor, libxrandr, libxi]

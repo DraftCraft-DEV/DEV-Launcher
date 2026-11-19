@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "apps": [
+    {
+      "id": "draftcraft",
+      "name": "DraftCraft",
+      "repo": "DraftCraft-DEV/DraftCraft",
+      "accent": "#3EA6E8",
+      "asset_prefix": "draftcraft",
+      "tagline": {
+        "en": "Open-source 2D drafting with the ribbon you know",
+        "it": "Disegno tecnico 2D open source, con la ribbon che conosci"
+      },
+      "description": {
+        "en": "Draft, dimension and plot 2D drawings with a familiar command line, object snaps, layers, dimensions, hatches and blocks. Opens and saves DWG and DXF, exports SVG, PNG and PDF, and lets AI agents drive it over MCP.",
+        "it": "Disegna, quota e stampa disegni 2D con una riga di comando familiare, snap ad oggetto, layer, quote, retini e blocchi. Apre e salva DWG e DXF, esporta SVG, PNG e PDF, e si lascia guidare dagli agenti AI via MCP."
+      },
+      "categories": ["CAD", "2D", "DWG", "DXF"],
+      "homepage": "https://github.com/DraftCraft-DEV/DraftCraft",
+      "macos": { "bundle_id": "dev.skryx.draftcraft", "app_name": "DraftCraft.app" },
+      "windows": {
+        "exe": "DraftCraft.exe",
+        "installed_exe": "draftcraft.exe",
+        "display_name": "DraftCraft",
+        "zip_root": "DraftCraft"
+      },
+      "linux": {
+        "package": "draftcraft",
+        "binary": "draftcraft",
+        "desktop_id": "dev.skryx.draftcraft",
+        "appimage_name": "DraftCraft.AppImage"
+      }
+    }
+  ]
+}

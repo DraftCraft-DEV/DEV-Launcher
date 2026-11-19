@@ -1,0 +1,44 @@
+[package]
+name = "dev-launcher"
+version = "1.0.0-beta"
+edition = "2024"
+rust-version = "1.90"
+license = "Apache-2.0"
+repository = "https://github.com/DraftCraft-DEV/DEV-Launcher"
+homepage = "https://github.com/DraftCraft-DEV/DEV-Launcher"
+description = "D.E.V. Launcher: install, update and launch the DraftCraft Engineering Ventures apps"
+authors = ["DraftCraft Engineering Ventures"]
+
+[[bin]]
+name = "dev-launcher"
+path = "src/main.rs"
+
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "wayland", "x11"] }
+egui = "0.37"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = "3"
+sha2 = "0.10"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+semver = "1"
+log = "0.4"
+dirs = "7"
+sys-locale = "0.3"
+sysinfo = { version = "0.40", default-features = false, features = ["system"] }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[build-dependencies]
+winresource = { version = "0.1", default-features = false }
