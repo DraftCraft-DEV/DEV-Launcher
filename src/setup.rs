@@ -299,7 +299,7 @@ mod win {
         set("InstallLocation", &dir.display().to_string())?;
         set("UninstallString", &format!("\"{exe_s}\" --uninstall"))?;
         set("QuietUninstallString", &format!("\"{exe_s}\" --uninstall --quiet"))?;
-        set("URLInfoAbout", "https://github.com/DraftCraft-DEV/DEV-Launcher")?;
+        set("URLInfoAbout", crate::catalog::WEBSITE)?;
         let _ = key.set_value("NoModify", &1u32);
         let _ = key.set_value("NoRepair", &1u32);
         let _ = key.set_value("EstimatedSize", &size_kb(&exe));

@@ -11,7 +11,7 @@ section: utils
 priority: optional
 maintainer: DraftCraft Engineering Ventures <noreply@github.com>
 vendor: DraftCraft Engineering Ventures
-homepage: https://github.com/DraftCraft-DEV/DEV-Launcher
+homepage: https://draftcraft.dev
 license: Apache-2.0
 description: |
   D.E.V. Launcher installs, updates and opens the apps of DraftCraft

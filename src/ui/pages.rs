@@ -216,6 +216,9 @@ impl Launcher {
                     });
                     ui.add_space(2.0);
                     ui.horizontal_wrapped(|ui| {
+                        if widgets::button(ui, &p, Style::Secondary, Some(Icon::External), tr("Website"), 32.0, true).clicked() {
+                            actions.push(UiAction::OpenUrl(crate::catalog::WEBSITE.into()));
+                        }
                         if widgets::button(ui, &p, Style::Secondary, Some(Icon::Folder), tr("Open data folder"), 32.0, true).clicked() {
                             actions.push(UiAction::Reveal(crate::paths::data_dir()));
                         }

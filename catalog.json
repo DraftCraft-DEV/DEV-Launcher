@@ -16,7 +16,7 @@
         "it": "Disegna, quota e stampa disegni 2D con una riga di comando familiare, snap ad oggetto, layer, quote, retini e blocchi. Apre e salva DWG e DXF, esporta SVG, PNG e PDF, e si lascia guidare dagli agenti AI via MCP."
       },
       "categories": ["CAD", "2D", "DWG", "DXF"],
-      "homepage": "https://github.com/DraftCraft-DEV/DraftCraft",
+      "homepage": "https://draftcraft.dev/draftcraft",
       "macos": { "bundle_id": "dev.skryx.draftcraft", "app_name": "DraftCraft.app" },
       "windows": {
         "exe": "DraftCraft.exe",

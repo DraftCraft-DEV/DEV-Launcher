@@ -15,6 +15,9 @@ const EMBEDDED: &str = include_str!("../catalog.json");
 /// The launcher's own GitHub repository (`owner/name`), for its self-update and for refreshing
 /// this catalog. Not set yet: until it is, the built-in catalog is used and the launcher doesn't
 /// update itself.
+/// The website of DraftCraft Engineering Ventures and its apps.
+pub const WEBSITE: &str = "https://draftcraft.dev";
+
 pub const LAUNCHER_REPO: Option<&str> = Some("DraftCraft-DEV/DEV-Launcher");
 
 /// Where the up-to-date catalog lives, once the launcher has a repository.

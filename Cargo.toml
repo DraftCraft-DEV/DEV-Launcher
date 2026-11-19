@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.90"
 license = "Apache-2.0"
 repository = "https://github.com/DraftCraft-DEV/DEV-Launcher"
-homepage = "https://github.com/DraftCraft-DEV/DEV-Launcher"
+homepage = "https://draftcraft.dev"
 description = "D.E.V. Launcher: install, update and launch the DraftCraft Engineering Ventures apps"
 authors = ["DraftCraft Engineering Ventures"]
 
