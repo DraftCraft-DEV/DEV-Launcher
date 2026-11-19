@@ -2,6 +2,7 @@
 
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod agent;
 mod assets;
 mod catalog;
 mod detect;
@@ -14,6 +15,7 @@ mod platform;
 mod settings;
 mod setup;
 mod system;
+mod tray;
 mod ui;
 
 use std::io::Write;
@@ -40,11 +42,10 @@ impl log::Log for Logger {
         let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
         let line = format!("{secs} {:<5} {}\n", record.level(), record.args());
         eprint!("{line}");
-        if let Ok(mut f) = self.file.lock() {
-            if let Some(f) = f.as_mut() {
+        if let Ok(mut f) = self.file.lock()
+            && let Some(f) = f.as_mut() {
                 let _ = f.write_all(line.as_bytes());
             }
-        }
     }
 
     fn flush(&self) {}
@@ -79,6 +80,8 @@ struct Cli {
     quiet: bool,
     remove_data: bool,
     preview: Option<Preview>,
+    /// Run the menu bar / tray icon instead of the window (`--tray`).
+    tray: bool,
 }
 
 fn parse_args() -> Result<Cli, String> {
@@ -94,8 +97,11 @@ fn parse_args() -> Result<Cli, String> {
             "--desktop-shortcut" => cli.desktop_shortcut = true,
             "--quiet" => cli.quiet = true,
             "--remove-data" => cli.remove_data = true,
+            "--tray" => cli.tray = true,
+            "--app" => args.app = Some(it.next().ok_or("--app needs an app id")?),
             "--setup-preview" => {
                 cli.preview = Some(match it.next().as_deref() {
+                    Some("ask") => Preview::Ask,
                     Some("working") => Preview::Working,
                     Some("done") => Preview::Done,
                     Some("failed") => Preview::Failed,
@@ -108,7 +114,7 @@ fn parse_args() -> Result<Cli, String> {
             }
             "--help" | "-h" => {
                 println!(
-                    "D.E.V. Launcher {}\n\nOptions:\n  --screenshot <file.png>   save a picture of the window and quit\n  --page <library|downloads|settings>\n  --theme <dark|light|system>\n  --lang <en|it>\n  --setup | --uninstall        show the install / uninstall screen\n  --install [--everyone] [--desktop-shortcut]   install without a window\n  --uninstall --quiet [--remove-data]          uninstall without a window\n  --version",
+                    "D.E.V. Launcher {}\n\nOptions:\n  --screenshot <file.png>   save a picture of the window and quit\n  --page <library|downloads|settings>\n  --theme <dark|light|system>\n  --lang <en|it>\n  --app <id>                show this app\n  --tray                    run the menu bar / tray icon (started at login)\n  --setup | --uninstall        show the install / uninstall screen (Windows, Linux)\n  --install [--everyone] [--desktop-shortcut]   install without a window\n  --uninstall --quiet [--remove-data]          uninstall without a window\n  --version",
                     env!("CARGO_PKG_VERSION")
                 );
                 std::process::exit(0);
@@ -167,10 +173,23 @@ fn main() -> eframe::Result {
         }
         std::process::exit(i32::from(result.is_err()));
     }
+    if cli.tray {
+        std::process::exit(tray::run());
+    }
+    // macOS has no setup: the DMG is drag and drop, and the Trash uninstalls.
+    // (`--setup-preview` still opens the screen, with Windows' options, for the docs.)
+    if cfg!(target_os = "macos") && cli.setup.is_some() && cli.preview.is_none() {
+        println!("On macOS, drag D.E.V. Launcher from the disk image into Applications; move it to the Trash to remove it.");
+        std::process::exit(0);
+    }
     if let Some(mode) = setup::mode_for_this_start(cli.setup) {
         return run_setup(mode, cli);
     }
     let args = cli.window;
+    // One window: a second start brings the first one forward.
+    if args.screenshot.is_none() && agent::send(agent::Endpoint::Window, &agent::Cmd::Show(args.app.clone())) {
+        return Ok(());
+    }
 
     let icon = app_icon();
     let mut viewport = egui::ViewportBuilder::default()
@@ -204,6 +223,6 @@ fn run_setup(mode: setup::Mode, cli: Cli) -> eframe::Result {
         viewport = viewport.with_icon(icon);
     }
     let options = eframe::NativeOptions { viewport, centered: true, ..Default::default() };
-    let (shot, preview) = (cli.window.screenshot, cli.preview);
-    eframe::run_native("D.E.V. Launcher Setup", options, Box::new(move |cc| Ok(Box::new(ui::setup::SetupApp::new(cc, mode, shot, preview)))))
+    let (shot, preview, lang) = (cli.window.screenshot, cli.preview, cli.window.lang);
+    eframe::run_native("D.E.V. Launcher Setup", options, Box::new(move |cc| Ok(Box::new(ui::setup::SetupApp::new(cc, mode, lang, shot, preview)))))
 }

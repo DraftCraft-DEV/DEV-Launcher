@@ -1,5 +1,6 @@
 # Builds the .deb, .rpm and Arch .pkg.tar.zst from the release binary.
-# Expects: VERSION (1.0.0-beta), NFPM_ARCH (amd64 | arm64), BIN (path to the binary).
+# Expects: VERSION (1.0.0-beta), NFPM_ARCH (amd64 | arm64), and the binary in target/release.
+# (nfpm expands environment variables in fields such as version, not in file paths.)
 name: dev-launcher
 arch: ${NFPM_ARCH}
 platform: linux
@@ -17,7 +18,7 @@ description: |
   Engineering Ventures, picking the right build for this computer.
 
 contents:
-  - src: ${BIN}
+  - src: target/release/dev-launcher
     dst: /usr/bin/dev-launcher
     file_info: { mode: 0755 }
   - src: packaging/linux/dev-launcher.desktop

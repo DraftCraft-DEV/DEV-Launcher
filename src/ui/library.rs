@@ -218,11 +218,10 @@ impl Launcher {
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 self.more_menu(ui, idx, installed, actions);
-                if let Some(i) = installed {
-                    if widgets::icon_button(ui, &p, Icon::Folder, 40.0, tr("Show in file manager")).clicked() {
+                if let Some(i) = installed
+                    && widgets::icon_button(ui, &p, Icon::Folder, 40.0, tr("Show in file manager")).clicked() {
                         actions.push(UiAction::Reveal(i.location()));
                     }
-                }
             });
         });
     }
@@ -268,18 +267,16 @@ impl Launcher {
                 actions.push(UiAction::OpenUrl(releases_url.clone()));
                 ui.close();
             }
-            if let Some(h) = &homepage {
-                if menu_item(ui, &p, Icon::External, tr("Website"), p.text).clicked() {
+            if let Some(h) = &homepage
+                && menu_item(ui, &p, Icon::External, tr("Website"), p.text).clicked() {
                     actions.push(UiAction::OpenUrl(h.clone()));
                     ui.close();
                 }
-            }
-            if let Some(i) = installed {
-                if menu_item(ui, &p, Icon::Folder, tr("Show in file manager"), p.text).clicked() {
+            if let Some(i) = installed
+                && menu_item(ui, &p, Icon::Folder, tr("Show in file manager"), p.text).clicked() {
                     actions.push(UiAction::Reveal(i.location()));
                     ui.close();
                 }
-            }
             if let Some(ii) = installed_index {
                 ui.separator();
                 if menu_item(ui, &p, Icon::Trash, tr("Uninstall…"), p.danger).clicked() {
@@ -669,13 +666,12 @@ fn inline_spans(s: &str) -> Vec<(String, bool, bool)> {
         } else if !code && c == '[' {
             // [text](url) → text
             let rest: String = chars[i + 1..].iter().collect();
-            if let Some(close) = rest.find("](") {
-                if let Some(end) = rest[close + 2..].find(')') {
+            if let Some(close) = rest.find("](")
+                && let Some(end) = rest[close + 2..].find(')') {
                     cur.push_str(&rest[..close]);
                     i += 1 + rest[..close + 2 + end + 1].chars().count();
                     continue;
                 }
-            }
             cur.push(c);
             i += 1;
         } else {

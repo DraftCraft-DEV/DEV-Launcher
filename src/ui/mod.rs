@@ -21,7 +21,7 @@ use crate::jobs::{self, Action, Inbox, Job, Msg, Status};
 use crate::net::Release;
 use crate::platform::{Os, Platform};
 use crate::settings::{LangPref, Settings, ThemePref};
-use crate::{assets, system};
+use crate::{agent, assets, system};
 use theme::{Palette, medium, regular, semibold};
 use widgets::{Icon, icon};
 
@@ -39,6 +39,8 @@ pub struct Args {
     pub page: Option<Page>,
     pub theme: Option<ThemePref>,
     pub lang: Option<LangPref>,
+    /// Show this app first (`--app`, used by the tray).
+    pub app: Option<String>,
 }
 
 /// An app of the catalog and what is known about it here.
@@ -52,7 +54,7 @@ pub struct AppEntry {
 }
 
 impl AppEntry {
-    fn new(def: AppDef) -> Self {
+    pub fn new(def: AppDef) -> Self {
         Self { def, installs: Vec::new(), detected: false, running: false, releases: None, checking: false }
     }
 
@@ -222,7 +224,8 @@ impl Launcher {
         let platform = Platform::detect();
         log::info!("D.E.V. Launcher {} on {}", env!("CARGO_PKG_VERSION"), platform.label());
         let apps: Vec<AppEntry> = catalog.apps.into_iter().map(AppEntry::new).collect();
-        let selected = settings.last_app.as_ref().and_then(|id| apps.iter().position(|a| &a.def.id == id)).unwrap_or(0);
+        let first = args.app.as_ref().or(settings.last_app.as_ref());
+        let selected = first.and_then(|id| apps.iter().position(|a| &a.def.id == id)).unwrap_or(0);
         let mut me = Self {
             inbox: Inbox::new(ctx.clone()),
             textures: Textures::load(&ctx),
@@ -245,11 +248,33 @@ impl Launcher {
             theme_override: args.theme,
             settings,
         };
+        // Screenshots for the docs leave the tray and the login item alone.
+        if me.shot.is_none() {
+            let inbox = me.inbox.clone();
+            agent::listen(agent::Endpoint::Window, move |cmd| inbox.post(Msg::Remote(cmd)));
+            me.apply_background();
+        }
         jobs::catalog(&me.inbox);
         me.detect_all();
         // The release list is always fetched once; the setting decides about later checks.
         me.check_all();
         me
+    }
+
+    /// Start (or stop) the tray and the login item to match the settings.
+    fn apply_background(&self) {
+        let settings = self.settings.clone();
+        std::thread::spawn(move || {
+            agent::apply(&settings);
+            agent::send(agent::Endpoint::Tray, &agent::Cmd::Refresh);
+        });
+    }
+
+    /// Tell the tray installs changed.
+    fn notify_tray(&self) {
+        if self.shot.is_none() {
+            std::thread::spawn(|| agent::send(agent::Endpoint::Tray, &agent::Cmd::Refresh));
+        }
     }
 
     fn detect_all(&mut self) {
@@ -296,7 +321,27 @@ impl Launcher {
                     self.auto_update(&app);
                 }
                 Msg::Finished { job } => self.job_finished(job, now),
+                Msg::Remote(cmd) => self.remote(cmd),
             }
+        }
+    }
+
+    fn remote(&mut self, cmd: agent::Cmd) {
+        let ctx = self.inbox.ctx().clone();
+        match cmd {
+            agent::Cmd::Show(app) => {
+                if let Some(i) = app.and_then(|id| self.apps.iter().position(|a| a.def.id == id)) {
+                    self.selected = i;
+                    self.page = Page::Library;
+                }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                self.detect_all();
+            }
+            agent::Cmd::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            agent::Cmd::Refresh => self.detect_all(),
+            agent::Cmd::Ping => {}
         }
     }
 
@@ -337,6 +382,7 @@ impl Launcher {
         };
         let app = job.app.clone();
         self.toasts.push(Toast { title, body, kind, until: now + if kind == ToastKind::Error { 12.0 } else { 6.0 } });
+        self.notify_tray();
         if let Some(a) = self.apps.iter().find(|a| a.def.id == app) {
             jobs::detect(&self.inbox, a.def.clone(), self.platform.clone());
         }
@@ -443,6 +489,9 @@ impl Launcher {
                     self.settings.save();
                     i18n::set(self.settings.language);
                     self.applied = None;
+                    if self.shot.is_none() {
+                        self.apply_background();
+                    }
                 }
             }
         }

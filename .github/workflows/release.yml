@@ -81,7 +81,6 @@ jobs:
       - name: Packages (.deb, .rpm, Arch)
         env:
           NFPM_ARCH: ${{ matrix.deb_arch }}
-          BIN: target/release/dev-launcher
         run: |
           curl -sSfL "https://github.com/goreleaser/nfpm/releases/download/v2.41.1/nfpm_2.41.1_Linux_${{ matrix.nfpm }}.tar.gz" | tar -xz nfpm
           ./nfpm pkg -f packaging/linux/nfpm.yaml -p deb -t "dist/dev-launcher-linux-$ARCH.deb"
@@ -162,7 +161,7 @@ jobs:
   macos:
     name: macOS universal
     needs: version
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       VERSION: ${{ needs.version.outputs.version }}
       MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
@@ -201,10 +200,17 @@ jobs:
             d=$((s * 2)); sips -z $d $d assets/icons/app-icon-macos-1024.png --out "$set/icon_${s}x${s}@2x.png" >/dev/null
           done
           iconutil -c icns "$set" -o "$app/Contents/Resources/AppIcon.icns"
+          # The menu bar icon runs from a helper app of its own (see Helper-Info.plist).
+          helper="$app/Contents/Library/LoginItems/D.E.V. Launcher Helper.app"
+          mkdir -p "$helper/Contents/MacOS" "$helper/Contents/Resources"
+          cp "$app/Contents/MacOS/dev-launcher" "$helper/Contents/MacOS/dev-launcher"
+          sed "s/@VERSION@/$VERSION/g" packaging/macos/Helper-Info.plist > "$helper/Contents/Info.plist"
+          plutil -lint "$helper/Contents/Info.plist"
 
       - name: Sign
         run: |
           app="stage/D.E.V. Launcher.app"
+          helper="$app/Contents/Library/LoginItems/D.E.V. Launcher Helper.app"
           if [ -n "$MACOS_CERTIFICATE_P12" ]; then
             kc=build.keychain; pw=$(uuidgen)
             security create-keychain -p "$pw" $kc
@@ -214,12 +220,15 @@ jobs:
             security import cert.p12 -k $kc -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
             security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" $kc >/dev/null
             rm cert.p12
+            # Inside out: the helper first, then the app that contains it.
+            codesign --force --options runtime --timestamp --sign "$MACOS_SIGN_IDENTITY" "$helper"
             codesign --force --options runtime --timestamp --sign "$MACOS_SIGN_IDENTITY" "$app"
           else
             echo "::warning::No signing certificate: the app is signed ad hoc and Gatekeeper will warn on first open."
+            codesign --force --sign - "$helper"
             codesign --force --sign - "$app"
           fi
-          codesign --verify --strict --verbose=2 "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
 
       - uses: actions/setup-python@v5
         with:
@@ -285,10 +294,13 @@ jobs:
           cat SHA256SUMS.txt
 
       - name: GitHub release
+        # Published as the latest release even for a beta: the README's download links go through
+        # /releases/latest/download/, which skips pre-releases. Alphas and release candidates stay
+        # pre-releases.
         run: |
-          pre=""
-          [[ "$VERSION" == *-* ]] && pre="--prerelease"
-          gh release create "$GITHUB_REF_NAME" dist/* --title "D.E.V. Launcher $VERSION" --generate-notes $pre
+          flag="--latest"
+          [[ "$VERSION" == *-alpha* || "$VERSION" == *-rc* ]] && flag="--prerelease"
+          gh release create "$GITHUB_REF_NAME" dist/* --title "D.E.V. Launcher $VERSION" --generate-notes $flag
 
       - uses: actions/upload-artifact@v4
         with:

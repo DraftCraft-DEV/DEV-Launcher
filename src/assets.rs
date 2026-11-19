@@ -7,6 +7,10 @@ pub const MONTSERRAT_BOLD: &[u8] = include_bytes!("../assets/fonts/Montserrat-Bo
 
 /// The launcher's icon (window, taskbar).
 pub const APP_ICON_256: &[u8] = include_bytes!("../assets/icons/app-icon-256.png");
+/// The notification area / system tray icon (Windows, Linux).
+pub const APP_ICON_64: &[u8] = include_bytes!("../assets/icons/app-icon-64.png");
+/// The menu bar icon (macOS): a black mark the system tints as a template image.
+pub const TRAY_MACOS: &[u8] = include_bytes!("../assets/icons/tray-macos.png");
 
 /// The hexagon mark and the `{D.E.V.}` wordmark, for dark and light backgrounds.
 pub const MARK_DARK: &[u8] = include_bytes!("../assets/icons/mark-dark.png");

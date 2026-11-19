@@ -19,6 +19,8 @@ pub enum Msg {
     Detected { app: String, installs: Vec<Installed>, running: bool },
     Releases { app: String, result: Result<Vec<Release>, String> },
     Finished { job: u64 },
+    /// A message from the tray or from a second start of the launcher.
+    Remote(crate::agent::Cmd),
 }
 
 #[derive(Clone)]

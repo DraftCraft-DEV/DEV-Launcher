@@ -169,6 +169,27 @@ impl Launcher {
                         actions.push(UiAction::CheckUpdates);
                     }
                 });
+                section(ui, &p, tr("Always on"), |ui| {
+                    let keep = match os {
+                        Os::MacOs => tr("Keep running in the menu bar"),
+                        Os::Windows => tr("Keep running in the notification area"),
+                        Os::Linux => tr("Keep running in the system tray"),
+                    };
+                    row(ui, &p, keep, Some(tr("Open your apps and get updates with this window closed.")), |ui| {
+                        changed |= widgets::toggle(ui, &p, &mut s.tray).changed();
+                    });
+                    divider(ui, &p);
+                    // Starting at login means starting the icon, so it needs the one above.
+                    row(ui, &p, tr("Start with the computer"), Some(tr("Starts quietly in the background when you sign in.")), |ui| {
+                        let mut on = s.tray && s.autostart;
+                        ui.add_enabled_ui(s.tray, |ui| {
+                            if widgets::toggle(ui, &p, &mut on).changed() {
+                                s.autostart = on;
+                                changed = true;
+                            }
+                        });
+                    });
+                });
                 section(ui, &p, tr("Installation"), |ui| {
                     match os {
                         Os::MacOs => row(ui, &p, tr("Install apps in"), None, |ui| {

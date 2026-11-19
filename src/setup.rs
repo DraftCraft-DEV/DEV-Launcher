@@ -110,6 +110,8 @@ pub fn decline_appimage_setup() {
 
 /// Install the running executable. Returns the installed program.
 pub fn install(opts: Options) -> Result<PathBuf, String> {
+    // An older copy's tray steps aside; the new copy starts its own when it opens.
+    crate::agent::send(crate::agent::Endpoint::Tray, &crate::agent::Cmd::Quit);
     #[cfg(windows)]
     {
         if opts.everyone && !win::is_elevated() {
@@ -136,6 +138,8 @@ pub fn install(opts: Options) -> Result<PathBuf, String> {
 
 /// Remove the installed launcher (the running one, when started with `--uninstall`).
 pub fn uninstall(remove_data: bool) -> Result<(), String> {
+    // The tray would keep the program busy (Windows can't delete it) and start again at login.
+    crate::agent::remove_all();
     #[cfg(windows)]
     {
         if win::installed().is_some_and(|(_, everyone)| everyone) && !win::is_elevated() {

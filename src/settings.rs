@@ -55,6 +55,11 @@ pub struct Settings {
     pub mac_user_applications: bool,
     /// Close the launcher after starting an app.
     pub close_on_launch: bool,
+    /// Keep an icon in the menu bar / notification area that opens the apps and checks for
+    /// updates while the window is closed.
+    pub tray: bool,
+    /// Start that icon when the user signs in.
+    pub autostart: bool,
     /// The app shown when the launcher opens.
     pub last_app: Option<String>,
 }
@@ -71,6 +76,8 @@ impl Default for Settings {
             windows_scope: WinScope::User,
             mac_user_applications: false,
             close_on_launch: false,
+            tray: true,
+            autostart: true,
             last_app: None,
         }
     }

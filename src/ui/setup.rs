@@ -32,27 +32,31 @@ pub struct SetupApp {
     wordmark: egui::TextureHandle,
     applied: Option<Palette>,
     shot: Option<super::Screenshot>,
+    /// Windows' options and wording. A macOS preview (for the docs) shows the Windows screen:
+    /// on macOS the launcher has no setup, the DMG is drag and drop.
+    windows: bool,
 }
 
 /// A step to show right away (`--setup-preview`, for screenshots).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Preview {
+    Ask,
     Working,
     Done,
     Failed,
 }
 
 impl SetupApp {
-    pub fn new(cc: &eframe::CreationContext, mode: Mode, shot: Option<PathBuf>, preview: Option<Preview>) -> Self {
+    pub fn new(cc: &eframe::CreationContext, mode: Mode, lang: Option<crate::settings::LangPref>, shot: Option<PathBuf>, preview: Option<Preview>) -> Self {
         let ctx = &cc.egui_ctx;
         theme::install_fonts(ctx);
-        crate::i18n::set(crate::settings::Settings::load().language);
+        crate::i18n::set(lang.unwrap_or_else(|| crate::settings::Settings::load().language));
         let tex = |name: &str, png: &[u8]| {
             let (size, rgba) = assets::decode_png(png).unwrap_or(([1, 1], vec![0; 4]));
             ctx.load_texture(name, egui::ColorImage::from_rgba_unmultiplied(size, &rgba), egui::TextureOptions::LINEAR)
         };
         let step = match preview {
-            None => Step::Ask,
+            None | Some(Preview::Ask) => Step::Ask,
             Some(Preview::Working) => Step::Working { started: f64::INFINITY, result: Arc::default() },
             Some(Preview::Done) => Step::Done(None),
             Some(Preview::Failed) => Step::Failed("couldn't copy the launcher (Access is denied. (os error 5))".into()),
@@ -68,6 +72,7 @@ impl SetupApp {
             wordmark: tex("wordmark", assets::WORDMARK_DARK),
             applied: None,
             shot: shot.map(super::Screenshot::new),
+            windows: cfg!(windows) || (cfg!(target_os = "macos") && preview.is_some()),
         }
     }
 
@@ -193,7 +198,9 @@ impl SetupApp {
         ui.label(RichText::new(title).font(display(27.0)).color(p.text));
         ui.add_space(6.0);
         ui.add(egui::Label::new(RichText::new(tr("Install, update and open the DraftCraft apps, all in one place.")).font(regular(14.5)).color(p.muted)).wrap());
-        ui.add_space(22.0);
+        // Windows has two more options: everything sits a little closer.
+        let gap = if self.windows { 0.55 } else { 1.0 };
+        ui.add_space(22.0 * gap);
         for (k, text) in [
             (Icon::Download, tr("Installs the right version for this computer")),
             (Icon::Refresh, tr("Keeps your apps up to date")),
@@ -201,9 +208,22 @@ impl SetupApp {
         ] {
             feature(ui, p, k, text);
         }
-        ui.add_space(18.0);
+        ui.add_space(18.0 * gap);
 
-        if cfg!(windows) {
+        let dir = match (self.windows && !cfg!(windows), self.opts.everyone) {
+            (true, false) => r"%LOCALAPPDATA%\Programs\D.E.V. Launcher".to_string(),
+            (true, true) => r"C:\Program Files\D.E.V. Launcher".to_string(),
+            (false, _) => super::library::short_path(&setup::target_dir(self.opts)),
+        };
+        let folder = |ui: &mut Ui| {
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(14.0, 16.0), Sense::hover());
+                icon(ui.painter(), r, Icon::Folder, p.faint);
+                ui.add(egui::Label::new(RichText::new(dir.as_str()).font(regular(12.5)).color(p.faint)).truncate());
+            });
+        };
+        if self.windows {
+            // Where it goes sits under the choice that decides it.
             ui.horizontal(|ui| {
                 ui.label(RichText::new(tr("Install for")).font(medium(13.5)).color(p.text));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -211,23 +231,20 @@ impl SetupApp {
                     widgets::segmented(ui, p, &mut self.opts.everyone, &opts);
                 });
             });
-            ui.add_space(4.0);
+            ui.add_space(-4.0);
+            folder(ui);
+            ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(tr("Shortcut on the desktop")).font(medium(13.5)).color(p.text));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     widgets::toggle(ui, p, &mut self.opts.desktop_shortcut);
                 });
             });
-            ui.add_space(6.0);
-        }
-        ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(vec2(14.0, 16.0), Sense::hover());
-            icon(ui.painter(), r, Icon::Folder, p.faint);
-            let dir = setup::target_dir(self.opts);
-            ui.add(egui::Label::new(RichText::new(dir.display().to_string()).font(regular(12.5)).color(p.faint)).truncate());
-        });
-        if cfg!(windows) && self.opts.everyone {
-            ui.label(RichText::new(tr("Installing for everyone asks for administrator permission.")).font(regular(12.0)).color(p.warn));
+            if self.opts.everyone {
+                ui.label(RichText::new(tr("Installing for everyone asks for administrator permission.")).font(regular(12.0)).color(p.warn));
+            }
+        } else {
+            folder(ui);
         }
 
         footer(ui, |ui| {
@@ -235,9 +252,10 @@ impl SetupApp {
             if widgets::button(ui, p, Style::Primary, Some(Icon::Download), label, 44.0, true).clicked() {
                 self.start(now);
             }
-            let other = if cfg!(target_os = "linux") { tr("Run without installing") } else { tr("Cancel") };
+            let linux = cfg!(target_os = "linux") && !self.windows;
+            let other = if linux { tr("Run without installing") } else { tr("Cancel") };
             if widgets::button(ui, p, Style::Ghost, None, other, 44.0, true).clicked() {
-                if cfg!(target_os = "linux") {
+                if linux {
                     setup::decline_appimage_setup();
                     if let Some(a) = std::env::var_os("APPIMAGE") {
                         let _ = setup::launch_installed(&PathBuf::from(a));
@@ -257,7 +275,9 @@ impl SetupApp {
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.y = 2.0;
                 ui.label(RichText::new(tr("Also remove settings and downloads")).font(medium(13.5)).color(p.text));
-                ui.label(RichText::new(crate::paths::config_dir().display().to_string()).font(regular(12.0)).color(p.faint));
+                // The docs preview shows Windows' layout from a Mac: Windows' folder too.
+                let data = if self.windows && !cfg!(windows) { r"%APPDATA%\D.E.V. Launcher".to_string() } else { super::library::short_path(&crate::paths::config_dir()) };
+                ui.label(RichText::new(data).font(regular(12.0)).color(p.faint));
             });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 widgets::toggle(ui, p, &mut self.remove_data);
@@ -297,7 +317,7 @@ impl SetupApp {
             Mode::Install => {
                 ui.label(RichText::new(trf("{} is installed", NAME)).font(display(26.0)).color(p.text));
                 ui.add_space(4.0);
-                let where_ = if cfg!(windows) { tr("You'll find it in the Start menu.") } else { tr("You'll find it in your applications menu.") };
+                let where_ = if self.windows { tr("You'll find it in the Start menu.") } else { tr("You'll find it in your applications menu.") };
                 ui.label(RichText::new(where_).font(regular(14.0)).color(p.muted));
                 ui.add_space(22.0);
                 ui.horizontal(|ui| {
@@ -306,13 +326,11 @@ impl SetupApp {
                 });
                 footer(ui, |ui| {
                     if widgets::button(ui, p, Style::Primary, None, tr("Finish"), 44.0, true).clicked() {
-                        if self.open_after {
-                            if let Some(path) = &path {
-                                if let Err(e) = setup::launch_installed(path) {
+                        if self.open_after
+                            && let Some(path) = &path
+                                && let Err(e) = setup::launch_installed(path) {
                                     log::error!("{e}");
                                 }
-                            }
-                        }
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });

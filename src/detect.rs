@@ -333,19 +333,17 @@ fn linux_package(name: &str) -> Option<(Kind, Option<Version>)> {
     if name.is_empty() {
         return None;
     }
-    if let Some(out) = run_quiet("dpkg-query", &["-W", "-f=${db:Status-Status} ${Version}", name]) {
-        if let Some(v) = out.strip_prefix("installed ") {
+    if let Some(out) = run_quiet("dpkg-query", &["-W", "-f=${db:Status-Status} ${Version}", name])
+        && let Some(v) = out.strip_prefix("installed ") {
             return Some((Kind::Deb, package_version(v)));
         }
-    }
     if let Some(out) = run_quiet("pacman", &["-Q", name]) {
         return Some((Kind::Pacman, out.split_whitespace().nth(1).and_then(package_version)));
     }
-    if let Some(out) = run_quiet("rpm", &["-q", "--qf", "%{VERSION}", name]) {
-        if !out.contains("not installed") {
+    if let Some(out) = run_quiet("rpm", &["-q", "--qf", "%{VERSION}", name])
+        && !out.contains("not installed") {
             return Some((Kind::Rpm, package_version(&out)));
         }
-    }
     None
 }
 

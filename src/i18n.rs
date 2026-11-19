@@ -167,6 +167,17 @@ fn italian(s: &str) -> Option<&'static str> {
         "{} has been uninstalled" => "{} è stato disinstallato",
         "The installation didn't finish" => "L'installazione non è stata completata",
         "The uninstall didn't finish" => "La disinstallazione non è stata completata",
+        // Menu bar / tray
+        "Open D.E.V. Launcher" => "Apri D.E.V. Launcher",
+        "Quit D.E.V. Launcher" => "Esci da D.E.V. Launcher",
+        "Updating {}…" => "Aggiornamento di {}…",
+        "Always on" => "Sempre attivo",
+        "Keep running in the menu bar" => "Resta attivo nella barra dei menu",
+        "Keep running in the notification area" => "Resta attivo nell'area di notifica",
+        "Keep running in the system tray" => "Resta attivo nell'area di sistema",
+        "Open your apps and get updates with this window closed." => "Apri le tue app e ricevi gli aggiornamenti anche a finestra chiusa.",
+        "Start with the computer" => "Avvia all'accensione del computer",
+        "Starts quietly in the background when you sign in." => "Parte in silenzio in background quando accedi.",
         _ => return None,
     })
 }
@@ -184,6 +195,7 @@ mod tests {
             include_str!("ui/pages.rs"),
             include_str!("ui/widgets.rs"),
             include_str!("ui/setup.rs"),
+            include_str!("tray.rs"),
         ];
         let mut missing = Vec::new();
         for src in sources {
