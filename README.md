@@ -55,8 +55,8 @@
 > apps from this repository, so new ones appear without updating the launcher.
 
 <p align="center">
-  <img src="docs/screenshots/library-dark.png" width="100%" alt="D.E.V. Launcher's library: DraftCraft's page with its icon, an Update to button, the release notes, the details of the installed copy and the list of versions">
-  <br><sub><b>The library</b>: each app with its version, what's new, where it is installed and every earlier release.</sub>
+  <img src="docs/screenshots/library-dark.png" width="100%" alt="D.E.V. Launcher's library: the sidebar lists D.E.V. apps (DraftCraft) and, under a light divider, open-source apps from outside D.E.V. (TraceDraw, by TraceDraw contributors); DraftCraft's page shows its icon, an Install button, what's new, the details and the list of versions">
+  <br><sub><b>The library</b>: D.E.V.'s own apps, and under them open-source apps made by others, credited to their creators; each with its version, what's new and every earlier release.</sub>
 </p>
 
 ## Screenshots
