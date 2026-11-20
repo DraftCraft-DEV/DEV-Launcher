@@ -79,6 +79,24 @@ impl Launcher {
             ui.add_space(4.0);
             ui.label(RichText::new(&a.def.name).font(display(34.0)).color(p.text));
             ui.label(RichText::new(a.def.tagline(i18n::code())).font(regular(15.0)).color(p.muted));
+            // An outside app: its creators, credited and linked, and that D.E.V. doesn't make it.
+            if a.def.is_outside()
+                && let Some(by) = &a.def.publisher
+            {
+                ui.add_space(2.0);
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 6.0;
+                    let link = ui.add(egui::Label::new(RichText::new(trf("by {} ↗", &by.name)).font(semibold(13.0)).color(p.accent_text)).sense(egui::Sense::click()));
+                    if link.on_hover_text(&by.url).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                        actions.push(UiAction::OpenUrl(by.url.clone()));
+                    }
+                    let note = match &a.def.license {
+                        Some(l) => trf("Independent open-source project, not made by D.E.V. · {}", l),
+                        None => tr("Independent open-source project, not made by D.E.V.").to_string(),
+                    };
+                    ui.label(RichText::new(note).font(regular(12.5)).color(p.faint));
+                });
+            }
             ui.add_space(10.0);
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
@@ -157,6 +175,14 @@ impl Launcher {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 10.0;
             let h = 44.0;
+            if a.def.coming_soon && a.def.is_outside() {
+                // Not installable from here yet: send people to the creators' own project.
+                if widgets::button(ui, &p, Style::Primary, Some(Icon::External), tr("Visit the project"), h, true).clicked() {
+                    actions.push(UiAction::OpenUrl(a.def.publisher_url()));
+                }
+                widgets::button(ui, &p, Style::Secondary, Some(Icon::Hexagon), tr("Coming soon"), h, false);
+                return;
+            }
             if a.def.coming_soon {
                 widgets::button(ui, &p, Style::Secondary, Some(Icon::Hexagon), tr("More apps are on the way"), h, false);
                 return;

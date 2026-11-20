@@ -22,6 +22,9 @@ pub const WORDMARK_LIGHT: &[u8] = include_bytes!("../assets/icons/wordmark-light
 pub fn app_icon_png(id: &str) -> Option<&'static [u8]> {
     match id {
         "draftcraft" => Some(include_bytes!("../assets/apps/draftcraft.png")),
+        // TraceDraw's own application icon, unmodified (assets/icon/tracedraw-256.png in
+        // tracedraw/tracedraw at 3a2da4e, MIT OR Apache-2.0, by the TraceDraw contributors).
+        "tracedraw" => Some(include_bytes!("../assets/apps/tracedraw.png")),
         _ => None,
     }
 }

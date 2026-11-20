@@ -195,3 +195,19 @@ the people behind [DraftCraft™](https://github.com/DraftCraft-DEV/DraftCraft).
 D.E.V. Launcher is licensed under the [Apache License 2.0](LICENSE). The bundled Inter and Montserrat fonts
 keep their own SIL Open Font License ([`assets/fonts`](assets/fonts)). DraftCraft™ and the DraftCraft logo
 are trademarks of DraftCraft Engineering Ventures.
+
+### Open-source apps from outside D.E.V.
+
+The launcher also lists open-source apps that other people make, apart from D.E.V.'s own apps and
+credited to their creators, with links to their projects. Each keeps its own licence and name:
+
+| App | Made by | Licence |
+|---|---|---|
+| [TraceDraw](https://github.com/tracedraw/tracedraw) | TraceDraw contributors | MIT OR Apache-2.0 |
+| [SolidCraft](https://github.com/tangency-labs/solidcraft) | Tangency Labs | MIT OR Apache-2.0 (its name, logo and look: [SolidCraft brand licence](https://github.com/tangency-labs/solidcraft/blob/main/LICENSE-BRAND)) |
+| [BIM Riviera](https://github.com/Rational-Boxes/BIM_Riviera) | Rational Boxes | GPL-3.0 |
+
+`assets/apps/tracedraw.png` is TraceDraw's application icon, unmodified, from
+[tracedraw/tracedraw](https://github.com/tracedraw/tracedraw) (`assets/icon/tracedraw-256.png`, MIT OR
+Apache-2.0, by the TraceDraw contributors). The launcher doesn't include SolidCraft's or BIM Riviera's
+icons.

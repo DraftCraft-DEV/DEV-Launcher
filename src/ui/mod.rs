@@ -619,17 +619,38 @@ impl Launcher {
         ui.add_space(20.0);
         ui.horizontal(|ui| {
             ui.add_space(8.0);
-            widgets::section_label(ui, &p, tr("Apps"));
+            widgets::section_label(ui, &p, tr("D.E.V. apps"));
         });
         ui.add_space(2.0);
         let ctx = ui.ctx().clone();
-        for i in 0..self.apps.len() {
+        // D.E.V.'s own apps, then, under a quiet rule, the open-source apps made by others.
+        let dev: Vec<usize> = (0..self.apps.len()).filter(|&i| !self.apps[i].def.is_outside()).collect();
+        let outside: Vec<usize> = (0..self.apps.len()).filter(|&i| self.apps[i].def.is_outside()).collect();
+        let mut order: Vec<Option<usize>> = dev.into_iter().map(Some).collect();
+        if !outside.is_empty() {
+            order.push(None);
+            order.extend(outside.into_iter().map(Some));
+        }
+        for slot in order {
+            let Some(i) = slot else {
+                ui.add_space(10.0);
+                let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
+                ui.painter().hline((r.left() + 8.0)..=(r.right() - 8.0), r.center().y, Stroke::new(1.0, theme::alpha(p.faint, 60)));
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    widgets::section_label(ui, &p, tr("Open source · outside D.E.V."));
+                });
+                ui.add_space(2.0);
+                continue;
+            };
             let tex = self.textures.app(&ctx, &self.apps[i].def.id);
             let a = &self.apps[i];
             let job = self.job_for(&a.def.id).map(|j| j.status());
             let update = a.update(&self.platform, self.settings.prereleases).map(|r| r.version_label());
             let (sub, dot) = match (&job, a.primary(), &update) {
                 (Some(Status::Running(stage)), _, _) => (stage_label(stage, &a.def.name), Some(p.info)),
+                (_, _, _) if a.def.is_outside() => (a.def.publisher.as_ref().map_or_else(String::new, |by| trf("by {}", &by.name)), None),
                 (_, _, _) if a.def.coming_soon => (tr("More apps are on the way").to_string(), None),
                 (_, None, _) if !a.detected => (tr("Checking…").to_string(), None),
                 (_, None, _) => (tr("Not installed").to_string(), Some(p.faint)),

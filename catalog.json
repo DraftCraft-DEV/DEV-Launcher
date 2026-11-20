@@ -15,9 +15,17 @@
         "en": "Draft, dimension and plot 2D drawings with a familiar command line, object snaps, layers, dimensions, hatches and blocks. Opens and saves DWG and DXF, exports SVG, PNG and PDF, and lets AI agents drive it over MCP.",
         "it": "Disegna, quota e stampa disegni 2D con una riga di comando familiare, snap ad oggetto, layer, quote, retini e blocchi. Apre e salva DWG e DXF, esporta SVG, PNG e PDF, e si lascia guidare dagli agenti AI via MCP."
       },
-      "categories": ["CAD", "2D", "DWG", "DXF"],
+      "categories": [
+        "CAD",
+        "2D",
+        "DWG",
+        "DXF"
+      ],
       "homepage": "https://draftcraft.dev/draftcraft",
-      "macos": { "bundle_id": "dev.skryx.draftcraft", "app_name": "DraftCraft.app" },
+      "macos": {
+        "bundle_id": "dev.skryx.draftcraft",
+        "app_name": "DraftCraft.app"
+      },
       "windows": {
         "exe": "DraftCraft.exe",
         "installed_exe": "draftcraft.exe",
@@ -30,6 +38,87 @@
         "desktop_id": "dev.skryx.draftcraft",
         "appimage_name": "DraftCraft.AppImage"
       }
+    },
+    {
+      "id": "tracedraw",
+      "name": "TraceDraw",
+      "repo": "tracedraw/tracedraw",
+      "origin": "outside",
+      "publisher": {
+        "name": "TraceDraw contributors",
+        "url": "https://github.com/tracedraw/tracedraw"
+      },
+      "license": "MIT OR Apache-2.0",
+      "asset_prefix": "tracedraw",
+      "coming_soon": true,
+      "tagline": {
+        "en": "Vector illustration, page layout and print",
+        "it": "Illustrazione vettoriale, impaginazione e stampa"
+      },
+      "description": {
+        "en": "An open-source vector editor written in Rust: pages and layers, curves and nodes, artistic and paragraph text, fills, outlines and live effects, with PDF/X output. Made by the TraceDraw contributors.",
+        "it": "Un editor vettoriale open source scritto in Rust: pagine e livelli, curve e nodi, testo artistico e di paragrafo, riempimenti, contorni ed effetti dinamici, con uscita PDF/X. Realizzato dai contributori di TraceDraw."
+      },
+      "categories": [
+        "Vector",
+        "Layout",
+        "Print"
+      ],
+      "homepage": "https://github.com/tracedraw/tracedraw"
+    },
+    {
+      "id": "solidcraft",
+      "name": "SolidCraft",
+      "repo": "tangency-labs/solidcraft",
+      "origin": "outside",
+      "publisher": {
+        "name": "Tangency Labs",
+        "url": "https://github.com/tangency-labs/solidcraft"
+      },
+      "license": "MIT OR Apache-2.0",
+      "asset_prefix": "solidcraft",
+      "coming_soon": true,
+      "tagline": {
+        "en": "Parametric 3D CAD",
+        "it": "CAD 3D parametrico"
+      },
+      "description": {
+        "en": "An open-source parametric 3D CAD application written in Rust: sketch, constrain and build solids on a feature timeline, then change a dimension and watch the model rebuild. Made by Tangency Labs.",
+        "it": "Un'applicazione CAD 3D parametrica open source scritta in Rust: schizza, vincola e costruisci solidi su una cronologia di funzioni, poi cambia una quota e guarda il modello ricostruirsi. Realizzata da Tangency Labs."
+      },
+      "categories": [
+        "CAD",
+        "3D",
+        "Parametric"
+      ],
+      "homepage": "https://docs.solidcraft.io/"
+    },
+    {
+      "id": "bim-riviera",
+      "name": "BIM Riviera",
+      "repo": "Rational-Boxes/BIM_Riviera",
+      "origin": "outside",
+      "publisher": {
+        "name": "Rational Boxes",
+        "url": "https://github.com/Rational-Boxes/BIM_Riviera"
+      },
+      "license": "GPL-3.0",
+      "asset_prefix": "bim-riviera",
+      "coming_soon": true,
+      "tagline": {
+        "en": "BIM authoring on native IFC",
+        "it": "Progettazione BIM su IFC nativo"
+      },
+      "description": {
+        "en": "An open-source Building Information Modeling application for architecture, structure and MEP, with IFC as its native format, Lua scripting and AI agents over MCP. In early development. Made by Rational Boxes.",
+        "it": "Un'applicazione open source di Building Information Modeling per architettura, strutture e impianti, con IFC come formato nativo, script Lua e agenti AI via MCP. In fase iniziale di sviluppo. Realizzata da Rational Boxes."
+      },
+      "categories": [
+        "BIM",
+        "IFC",
+        "3D"
+      ],
+      "homepage": "https://bimriviera.com/"
     }
   ]
 }

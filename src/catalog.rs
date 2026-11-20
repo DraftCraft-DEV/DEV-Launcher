@@ -32,6 +32,27 @@ pub struct Catalog {
     pub apps: Vec<AppDef>,
 }
 
+/// Who makes an app. The launcher keeps the two apart: DraftCraft Engineering Ventures' own apps,
+/// and open-source apps made by others, listed separately with full credit to their creators.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Origin {
+    /// Made by DraftCraft Engineering Ventures (D.E.V.).
+    #[default]
+    Dev,
+    /// An independent open-source project, not made by D.E.V.
+    Outside,
+}
+
+/// The people or organization behind an app, and where to find them.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Publisher {
+    /// As the creators name themselves ("Tangency Labs", "TraceDraw contributors").
+    pub name: String,
+    /// Their own page: the project's repository or website.
+    pub url: String,
+}
+
 /// Text in several languages; English is the fallback.
 pub type Localized = BTreeMap<String, String>;
 
@@ -41,6 +62,15 @@ pub struct AppDef {
     pub name: String,
     /// GitHub `owner/name` that publishes the releases.
     pub repo: String,
+    /// Whether D.E.V. makes it or it is an outside open-source project.
+    #[serde(default)]
+    pub origin: Origin,
+    /// Who makes it, credited and linked on its page. Required for outside apps.
+    #[serde(default)]
+    pub publisher: Option<Publisher>,
+    /// The app's licence as an SPDX expression ("MIT OR Apache-2.0", "GPL-3.0").
+    #[serde(default)]
+    pub license: Option<String>,
     /// `#RRGGBB`.
     #[serde(default)]
     pub accent: Option<String>,
@@ -109,6 +139,16 @@ impl AppDef {
         pick(&self.description, lang)
     }
 
+    /// An independent open-source app, not made by D.E.V.
+    pub fn is_outside(&self) -> bool {
+        self.origin == Origin::Outside
+    }
+
+    /// The creators' page: their own link, else the app's repository.
+    pub fn publisher_url(&self) -> String {
+        self.publisher.as_ref().map_or_else(|| format!("https://github.com/{}", self.repo), |p| p.url.clone())
+    }
+
     pub fn accent_rgb(&self) -> Option<[u8; 3]> {
         parse_hex(self.accent.as_deref()?)
     }
@@ -149,6 +189,8 @@ impl Catalog {
                     && a.id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
                     && a.repo.split('/').count() == 2
                     && !a.asset_prefix.is_empty()
+                    // An outside app always credits and links its creators.
+                    && (!a.is_outside() || a.publisher.as_ref().is_some_and(|p| !p.name.trim().is_empty() && p.url.starts_with("https://")))
             });
         valid.then_some(c)
     }
@@ -185,6 +227,38 @@ mod tests {
         assert_eq!(dc.accent_rgb(), Some([0x3e, 0xa6, 0xe8]));
         assert!(!dc.tagline("it").is_empty() && dc.tagline("it") != dc.tagline("en"));
         assert_eq!(dc.tagline("fr"), dc.tagline("en"));
+    }
+
+    #[test]
+    fn outside_apps_are_kept_apart_and_credit_their_creators() {
+        let c = Catalog::parse(EMBEDDED.as_bytes()).expect("valid");
+        let dc = c.apps.iter().find(|a| a.id == "draftcraft").expect("DraftCraft is listed");
+        assert_eq!(dc.origin, Origin::Dev, "DraftCraft is a D.E.V. app");
+        for (id, by, url) in [
+            ("tracedraw", "TraceDraw contributors", "https://github.com/tracedraw/tracedraw"),
+            ("solidcraft", "Tangency Labs", "https://github.com/tangency-labs/solidcraft"),
+            ("bim-riviera", "Rational Boxes", "https://github.com/Rational-Boxes/BIM_Riviera"),
+        ] {
+            let a = c.apps.iter().find(|a| a.id == id).unwrap_or_else(|| panic!("{id} is listed"));
+            assert!(a.is_outside(), "{id} is an outside app");
+            assert_eq!(a.publisher.as_ref().map(|p| p.name.as_str()), Some(by));
+            assert_eq!(a.publisher_url(), url);
+            assert!(a.license.is_some(), "{id} names its licence");
+            assert!(a.coming_soon, "{id} is listed, not installed, until its downloads are wired and verified");
+        }
+        // D.E.V. apps come first, so the sidebar's two sections are each in one run.
+        let first_outside = c.apps.iter().position(AppDef::is_outside).unwrap_or(c.apps.len());
+        assert!(c.apps[first_outside..].iter().all(AppDef::is_outside));
+    }
+
+    #[test]
+    fn an_outside_app_without_credit_is_refused() {
+        let base = r#"{"id":"x","name":"X","repo":"a/b","asset_prefix":"x","origin":"outside""#;
+        assert!(Catalog::parse(format!("{{\"apps\":[{base}}}]}}").as_bytes()).is_none(), "no publisher");
+        let http = format!(r#"{{"apps":[{base},"publisher":{{"name":"A","url":"http://a"}}}}]}}"#);
+        assert!(Catalog::parse(http.as_bytes()).is_none(), "the link must be https");
+        let ok = format!(r#"{{"apps":[{base},"publisher":{{"name":"A","url":"https://a"}}}}]}}"#);
+        assert!(Catalog::parse(ok.as_bytes()).is_some());
     }
 
     #[test]
