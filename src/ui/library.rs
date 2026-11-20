@@ -41,7 +41,9 @@ impl Launcher {
         let accent = a.def.accent_rgb().map_or(p.info, |[r, g, b]| Color32::from_rgb(r, g, b));
         let width = ui.available_width();
         let job = self.job_for(&a.def.id).map(|j| (j.id, j.action, j.version.clone(), j.status()));
-        let height = if job.is_some() { 262.0 } else { 226.0 };
+        // An outside app has one more line: its creators' credit.
+        let credit = if a.def.is_outside() && a.def.publisher.is_some() { 26.0 } else { 0.0 };
+        let height = if job.is_some() { 262.0 } else { 226.0 } + credit;
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
         let painter = ui.painter();
 
@@ -101,6 +103,9 @@ impl Launcher {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
                 match (&installed, &update) {
+                    _ if a.def.coming_soon => {
+                        widgets::chip(ui, &p, None, tr("Coming soon"));
+                    }
                     _ if !a.detected => {
                         widgets::chip(ui, &p, None, tr("Checking…"));
                     }
