@@ -116,6 +116,11 @@ pub struct WinDef {
     /// The top folder inside the portable zip, dropped when unpacking.
     #[serde(default)]
     pub zip_root: Option<String>,
+    /// Install only the portable zip on Windows. For apps whose setup isn't a Windows Installer
+    /// one that takes the launcher's silent options (TraceDraw's is Inno Setup): the launcher
+    /// could neither run it quietly nor remove it cleanly, while the zip it handles fully.
+    #[serde(default)]
+    pub portable_only: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -242,7 +247,8 @@ mod tests {
             assert_eq!(a.publisher.as_ref().map(|p| p.name.as_str()), Some(by));
             assert_eq!(a.publisher_url(), url);
             assert!(a.license.is_some(), "{id} names its licence");
-            assert!(a.coming_soon, "{id} is listed, not installed, until its downloads are wired and verified");
+            assert!(!a.coming_soon, "{id} installs from its own releases");
+            assert_eq!(a.download_prefix(), format!("https://github.com/{}/releases/download/", a.repo), "{id} downloads only from its creators' GitHub");
         }
         // D.E.V. apps come first, so the sidebar's two sections are each in one run.
         let first_outside = c.apps.iter().position(AppDef::is_outside).unwrap_or(c.apps.len());

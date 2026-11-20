@@ -110,7 +110,9 @@ pub fn install_plans(app: &AppDef, platform: &Platform, release: &Release, setti
             add(Kind::Dmg, Target::MacApp { bundle: dir.join(&app.macos.app_name) });
         }
         Os::Windows => {
-            add(Kind::WinSetup, Target::WinSetup { for_everyone: settings.windows_scope == WinScope::Machine });
+            if !app.windows.portable_only {
+                add(Kind::WinSetup, Target::WinSetup { for_everyone: settings.windows_scope == WinScope::Machine });
+            }
             add(Kind::Zip, Target::WinPortable { dir: paths::windows_user_programs().join(&app.name) });
         }
         Os::Linux => {
@@ -711,6 +713,72 @@ mod tests {
                 .collect(),
             ..Release::default()
         }
+    }
+
+    fn tracedraw() -> AppDef {
+        crate::catalog::Catalog::embedded().apps.into_iter().find(|a| a.id == "tracedraw").unwrap()
+    }
+
+    /// TraceDraw's release files as its own packaging names them (tracedraw/tracedraw:
+    /// packaging/macos/build-dmg.sh, packaging/linux/build-appimage.sh, packaging/windows/tracedraw.iss
+    /// and .github/workflows/build.yml): the version after the name, Inno Setup on Windows.
+    fn tracedraw_release() -> Release {
+        let names = [
+            "tracedraw-1.4.0-macos-arm64.dmg",
+            "tracedraw-1.4.0-macos-x86_64.dmg",
+            "tracedraw-1.4.0-windows-x86_64-setup.exe",
+            "tracedraw-1.4.0-windows-x86_64.zip",
+            "tracedraw-1.4.0-windows-x86-setup.exe",
+            "tracedraw-1.4.0-windows-x86.zip",
+            "tracedraw-1.4.0-linux-amd64.AppImage",
+            "tracedraw-1.4.0-linux-arm64.AppImage",
+            "tracedraw-1.4.0-linux-amd64.AppImage.zsync",
+            "tracedraw-1.4.0-linux-x86_64.tar.gz",
+            "tracedraw-1.4.0-linux-x86_64.flatpak",
+            "tracedraw-1.4.0-web.zip",
+            "tracedraw-cli.exe",
+        ];
+        Release {
+            tag: "v1.4.0".into(),
+            assets: names
+                .iter()
+                .map(|n| Asset {
+                    name: (*n).into(),
+                    url: format!("https://github.com/tracedraw/tracedraw/releases/download/v1.4.0/{n}"),
+                    size: 10,
+                    sha256: Some("b".repeat(64)),
+                })
+                .collect(),
+            ..Release::default()
+        }
+    }
+
+    #[test]
+    fn tracedraw_installs_from_its_own_releases() {
+        let app = tracedraw();
+        let r = tracedraw_release();
+        let settings = Settings::default();
+        let names = |os, arch, family| -> Vec<String> {
+            install_plans(&app, &platform(os, arch, family), &r, &settings).into_iter().map(|p| p.asset.name).collect()
+        };
+        assert_eq!(names(Os::MacOs, Arch::Arm64, None), ["tracedraw-1.4.0-macos-arm64.dmg"]);
+        assert_eq!(names(Os::MacOs, Arch::X64, None), ["tracedraw-1.4.0-macos-x86_64.dmg"]);
+        // Windows: the portable zip only, never the Inno Setup installer (it doesn't take the
+        // launcher's silent options, and the launcher couldn't remove it cleanly).
+        assert_eq!(names(Os::Windows, Arch::X64, None), ["tracedraw-1.4.0-windows-x86_64.zip"]);
+        // Linux: the AppImage (TraceDraw publishes no .deb or .rpm).
+        assert_eq!(names(Os::Linux, Arch::X64, Some(LinuxFamily::Debian)), ["tracedraw-1.4.0-linux-amd64.AppImage"]);
+        assert_eq!(names(Os::Linux, Arch::Arm64, Some(LinuxFamily::Other)), ["tracedraw-1.4.0-linux-arm64.AppImage"]);
+        // Every file comes from TraceDraw's own GitHub releases.
+        for p in install_plans(&app, &platform(Os::Windows, Arch::X64, None), &r, &settings) {
+            assert!(net::url_under(&p.asset.url, &app.download_prefix()), "{}", p.asset.url);
+        }
+    }
+
+    #[test]
+    fn draftcraft_still_offers_its_setup_on_windows() {
+        let plans = install_plans(&draftcraft(), &platform(Os::Windows, Arch::X64, None), &release_220(), &Settings::default());
+        assert_eq!(plans.first().map(|p| p.asset.name.as_str()), Some("draftcraft-windows-x64-setup.exe"));
     }
 
     fn platform(os: Os, arch: Arch, family: Option<LinuxFamily>) -> Platform {

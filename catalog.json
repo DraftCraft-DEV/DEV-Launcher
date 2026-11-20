@@ -50,7 +50,7 @@
       },
       "license": "MIT OR Apache-2.0",
       "asset_prefix": "tracedraw",
-      "coming_soon": true,
+      "coming_soon": false,
       "tagline": {
         "en": "Vector illustration, page layout and print",
         "it": "Illustrazione vettoriale, impaginazione e stampa"
@@ -64,7 +64,23 @@
         "Layout",
         "Print"
       ],
-      "homepage": "https://github.com/tracedraw/tracedraw"
+      "homepage": "https://github.com/tracedraw/tracedraw",
+      "macos": {
+        "bundle_id": "dev.tracedraw.app",
+        "app_name": "TraceDraw.app"
+      },
+      "windows": {
+        "exe": "tracedraw.exe",
+        "installed_exe": "tracedraw.exe",
+        "display_name": "TraceDraw",
+        "portable_only": true
+      },
+      "linux": {
+        "package": "",
+        "binary": "tracedraw",
+        "desktop_id": "tracedraw",
+        "appimage_name": "TraceDraw.AppImage"
+      }
     }
   ]
 }
