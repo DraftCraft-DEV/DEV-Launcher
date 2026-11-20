@@ -236,8 +236,6 @@ mod tests {
         assert_eq!(dc.origin, Origin::Dev, "DraftCraft is a D.E.V. app");
         for (id, by, url) in [
             ("tracedraw", "TraceDraw contributors", "https://github.com/tracedraw/tracedraw"),
-            ("solidcraft", "Tangency Labs", "https://github.com/tangency-labs/solidcraft"),
-            ("bim-riviera", "Rational Boxes", "https://github.com/Rational-Boxes/BIM_Riviera"),
         ] {
             let a = c.apps.iter().find(|a| a.id == id).unwrap_or_else(|| panic!("{id} is listed"));
             assert!(a.is_outside(), "{id} is an outside app");

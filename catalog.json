@@ -65,60 +65,6 @@
         "Print"
       ],
       "homepage": "https://github.com/tracedraw/tracedraw"
-    },
-    {
-      "id": "solidcraft",
-      "name": "SolidCraft",
-      "repo": "tangency-labs/solidcraft",
-      "origin": "outside",
-      "publisher": {
-        "name": "Tangency Labs",
-        "url": "https://github.com/tangency-labs/solidcraft"
-      },
-      "license": "MIT OR Apache-2.0",
-      "asset_prefix": "solidcraft",
-      "coming_soon": true,
-      "tagline": {
-        "en": "Parametric 3D CAD",
-        "it": "CAD 3D parametrico"
-      },
-      "description": {
-        "en": "An open-source parametric 3D CAD application written in Rust: sketch, constrain and build solids on a feature timeline, then change a dimension and watch the model rebuild. Made by Tangency Labs.",
-        "it": "Un'applicazione CAD 3D parametrica open source scritta in Rust: schizza, vincola e costruisci solidi su una cronologia di funzioni, poi cambia una quota e guarda il modello ricostruirsi. Realizzata da Tangency Labs."
-      },
-      "categories": [
-        "CAD",
-        "3D",
-        "Parametric"
-      ],
-      "homepage": "https://docs.solidcraft.io/"
-    },
-    {
-      "id": "bim-riviera",
-      "name": "BIM Riviera",
-      "repo": "Rational-Boxes/BIM_Riviera",
-      "origin": "outside",
-      "publisher": {
-        "name": "Rational Boxes",
-        "url": "https://github.com/Rational-Boxes/BIM_Riviera"
-      },
-      "license": "GPL-3.0",
-      "asset_prefix": "bim-riviera",
-      "coming_soon": true,
-      "tagline": {
-        "en": "BIM authoring on native IFC",
-        "it": "Progettazione BIM su IFC nativo"
-      },
-      "description": {
-        "en": "An open-source Building Information Modeling application for architecture, structure and MEP, with IFC as its native format, Lua scripting and AI agents over MCP. In early development. Made by Rational Boxes.",
-        "it": "Un'applicazione open source di Building Information Modeling per architettura, strutture e impianti, con IFC come formato nativo, script Lua e agenti AI via MCP. In fase iniziale di sviluppo. Realizzata da Rational Boxes."
-      },
-      "categories": [
-        "BIM",
-        "IFC",
-        "3D"
-      ],
-      "homepage": "https://bimriviera.com/"
     }
   ]
 }
