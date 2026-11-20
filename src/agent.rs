@@ -144,12 +144,12 @@ fn tray_program() -> Option<PathBuf> {
 
 /// A copy that will still be there after a restart (not a mounted disk image, not a translocated
 /// quarantine copy).
-fn stable_location(p: &Path) -> bool {
+pub fn stable_location(p: &Path) -> bool {
     let s = p.to_string_lossy();
     !(s.starts_with("/Volumes/") || s.contains("/AppTranslocation/") || s.contains("/.mount_"))
 }
 
-fn detached(cmd: &mut Command) -> &mut Command {
+pub fn detached(cmd: &mut Command) -> &mut Command {
     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     for var in ["APPIMAGE", "APPDIR", "ARGV0", "OWD"] {
         cmd.env_remove(var);

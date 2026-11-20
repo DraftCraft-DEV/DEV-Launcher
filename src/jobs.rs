@@ -12,6 +12,7 @@ use crate::detect::{self, Installed};
 use crate::install::{self, Outcome, Plan, Stage};
 use crate::net::{self, Release};
 use crate::platform::Platform;
+use crate::selfupdate::{self, Method};
 use crate::system;
 
 pub enum Msg {
@@ -21,6 +22,10 @@ pub enum Msg {
     Finished { job: u64 },
     /// A message from the tray or from a second start of the launcher.
     Remote(crate::agent::Cmd),
+    /// A newer launcher (or none) on GitHub.
+    LauncherRelease(Result<Option<Release>, String>),
+    /// The launcher's own update was put in place (or failed).
+    LauncherApplied { version: String, result: Result<(), String> },
 }
 
 #[derive(Clone)]
@@ -81,6 +86,32 @@ pub fn catalog(inbox: &Inbox) {
         if let Some(c) = Catalog::fetch() {
             inbox.post(Msg::Catalog(c));
         }
+    });
+}
+
+/// Look for a newer launcher.
+pub fn launcher_check(inbox: &Inbox, method: Method, platform: Platform, prereleases: bool) {
+    let inbox = inbox.clone();
+    spawn("self-check", move || inbox.post(Msg::LauncherRelease(selfupdate::check(&method, &platform, prereleases))));
+}
+
+/// Download and put in place the launcher `release`; `progress` follows the download (0..1).
+pub fn launcher_apply(inbox: &Inbox, release: Release, method: Method, platform: Platform, progress: Arc<Mutex<Option<f32>>>) {
+    let inbox = inbox.clone();
+    spawn("self-update", move || {
+        let ctx = inbox.ctx().clone();
+        let stop = AtomicBool::new(false);
+        let mut report = |t: net::Transfer| {
+            if let Ok(mut p) = progress.lock() {
+                *p = (t.total > 0).then(|| t.done as f32 / t.total as f32);
+            }
+            ctx.request_repaint();
+        };
+        let result = selfupdate::apply(&release, &method, &platform, &stop, &mut report);
+        if let Err(e) = &result {
+            log::error!("self-update to {}: {e}", release.version_label());
+        }
+        inbox.post(Msg::LauncherApplied { version: release.version_label(), result });
     });
 }
 

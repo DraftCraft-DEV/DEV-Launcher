@@ -82,6 +82,13 @@ pub fn running(app: &AppDef, installed: &Installed) -> Vec<u32> {
     ) else {
         return Vec::new();
     };
+    // A Mac app is its main program: tools inside the bundle (a command-line helper, an MCP
+    // server started by an AI agent) don't make it "running".
+    let main_exe = matches!(installed.method, Method::MacApp)
+        .then(|| crate::detect::mac_bundle_info(&installed.path))
+        .flatten()
+        .and_then(|info| info.get("CFBundleExecutable").cloned())
+        .map(|exe| installed.path.join("Contents/MacOS").join(exe));
     let root = match &installed.method {
         Method::MacApp | Method::WinPortable => Some(installed.path.clone()),
         Method::WinSetup { .. } => installed.path.parent().map(Path::to_path_buf),
@@ -100,6 +107,7 @@ pub fn running(app: &AppDef, installed: &Installed) -> Vec<u32> {
                 return false;
             }
             match (&root, p.exe()) {
+                (Some(_), Some(exe)) if main_exe.is_some() => Some(exe) == main_exe.as_deref(),
                 (Some(root), Some(exe)) => exe.starts_with(root),
                 _ => {
                     let name = p.name().to_string_lossy().to_ascii_lowercase();

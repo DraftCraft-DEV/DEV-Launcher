@@ -477,21 +477,15 @@ fn is_old_name(p: &Path) -> bool {
 
 /// Windows: a Start menu shortcut to a portable copy (best effort).
 fn windows_shortcut(name: &str, exe: &Path) {
-    if !cfg!(windows) {
-        return;
+    #[cfg(windows)]
+    {
+        let Some(programs) = dirs::data_dir().map(|d| d.join(r"Microsoft\Windows\Start Menu\Programs")) else { return };
+        if let Err(e) = crate::winshell::shortcut(&programs.join(format!("{name}.lnk")), exe, name) {
+            log::warn!("no Start menu shortcut: {e}");
+        }
     }
-    let Some(programs) = dirs::data_dir().map(|d| d.join(r"Microsoft\Windows\Start Menu\Programs")) else { return };
-    let lnk = programs.join(format!("{name}.lnk"));
-    let q = |p: &Path| p.display().to_string().replace('\'', "''");
-    let script = format!(
-        "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{}');$s.TargetPath='{}';$s.WorkingDirectory='{}';$s.Save()",
-        q(&lnk),
-        q(exe),
-        q(exe.parent().unwrap_or(exe))
-    );
-    if let Err(e) = system::run("powershell", &[OsStr::new("-NoProfile"), OsStr::new("-NonInteractive"), OsStr::new("-Command"), OsStr::new(&script)]) {
-        log::warn!("no Start menu shortcut: {e}");
-    }
+    #[cfg(not(windows))]
+    let _ = (name, exe);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -548,7 +542,7 @@ fn linux_menu_entry(app: &AppDef, appimage: &Path) {
 }
 
 /// Install a downloaded package with the system's package manager, through `pkexec`.
-fn install_package(kind: Kind, file: &Path) -> Result<(), String> {
+pub fn install_package(kind: Kind, file: &Path) -> Result<(), String> {
     let file = file.canonicalize().map_err(|e| e.to_string())?;
     let f = file.as_os_str();
     let os = OsStr::new;
