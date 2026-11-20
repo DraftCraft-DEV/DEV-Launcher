@@ -29,6 +29,11 @@ pub fn remote_url() -> Option<String> {
 pub struct Catalog {
     #[serde(default)]
     pub schema: u32,
+    /// Goes up whenever the app list changes. A saved or downloaded catalog older than the one
+    /// built into this launcher is ignored, so a launcher that knows newer apps never shows an
+    /// older list (one cached by an earlier launcher, or still on `main` before a merge).
+    #[serde(default)]
+    pub revision: u32,
     pub apps: Vec<AppDef>,
 }
 
@@ -204,9 +209,14 @@ impl Catalog {
         paths::cache_dir().join("catalog.json")
     }
 
-    /// The last catalog downloaded, or the built-in one.
+    /// The last catalog downloaded, unless the built-in one is newer.
     pub fn load() -> Self {
-        std::fs::read(Self::cache_file()).ok().and_then(|b| Self::parse(&b)).unwrap_or_else(Self::embedded)
+        Self::newest(std::fs::read(Self::cache_file()).ok().and_then(|b| Self::parse(&b)), Self::embedded())
+    }
+
+    /// `other` when it is at least as new as `built_in`, else `built_in`.
+    fn newest(other: Option<Self>, built_in: Self) -> Self {
+        other.filter(|c| c.revision >= built_in.revision).unwrap_or(built_in)
     }
 
     /// Download the current catalog; `None` when offline or the file is not valid.
@@ -214,6 +224,10 @@ impl Catalog {
         let url = remote_url()?;
         let bytes = crate::net::get_bytes(&url).map_err(|e| log::info!("catalog not refreshed: {e}")).ok()?;
         let catalog = Self::parse(&bytes)?;
+        if catalog.revision < Self::embedded().revision {
+            log::info!("catalog not refreshed: the published one (revision {}) is older than the built-in one", catalog.revision);
+            return None;
+        }
         let _ = paths::write_atomic(&Self::cache_file(), &bytes);
         Some(catalog)
     }
@@ -263,6 +277,20 @@ mod tests {
         assert!(Catalog::parse(http.as_bytes()).is_none(), "the link must be https");
         let ok = format!(r#"{{"apps":[{base},"publisher":{{"name":"A","url":"https://a"}}}}]}}"#);
         assert!(Catalog::parse(ok.as_bytes()).is_some());
+    }
+
+    #[test]
+    fn an_older_saved_or_published_catalog_never_replaces_a_newer_built_in_one() {
+        let built_in = Catalog::embedded();
+        assert!(built_in.revision >= 2, "the catalog with outside apps is revision 2 or later");
+        // As on `main` before this list is merged, or as cached by an earlier launcher: no revision.
+        let old = Catalog::parse(br#"{"schema":1,"apps":[{"id":"draftcraft","name":"DraftCraft","repo":"a/b","asset_prefix":"draftcraft"}]}"#);
+        let picked = Catalog::newest(old, built_in.clone());
+        assert!(picked.apps.iter().any(|a| a.id == "tracedraw"), "the built-in list wins");
+        // A newer published one is used.
+        let newer = Catalog { revision: built_in.revision + 1, ..built_in.clone() };
+        assert_eq!(Catalog::newest(Some(newer), built_in.clone()).revision, built_in.revision + 1);
+        assert_eq!(Catalog::newest(None, built_in.clone()).revision, built_in.revision);
     }
 
     #[test]

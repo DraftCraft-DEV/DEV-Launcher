@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "revision": 2,
   "apps": [
     {
       "id": "draftcraft",
