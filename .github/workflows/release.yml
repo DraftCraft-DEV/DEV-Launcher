@@ -1,7 +1,7 @@
 # Builds every package of D.E.V. Launcher and publishes them on a GitHub release.
 #
-# Push a tag that matches Cargo.toml's version (`v1.0.0-beta`) to release. A version with a
-# pre-release part (`-beta`) becomes a GitHub pre-release. Run it by hand (Actions → Release →
+# Push a tag that matches Cargo.toml's version (`v1.0.0`) to release. An `-alpha` or `-rc`
+# version becomes a GitHub pre-release. Run it by hand (Actions → Release →
 # Run workflow) to build everything without publishing.
 #
 # Files (the launcher reads its own updates with the same names it uses for the apps):

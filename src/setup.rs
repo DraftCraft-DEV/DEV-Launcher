@@ -177,6 +177,34 @@ pub fn launch_installed(program: &Path) -> Result<(), String> {
     cmd.spawn().map(|_| ()).map_err(|e| format!("couldn't start {} ({e})", program.display()))
 }
 
+/// Windows: (install folder, for every user) of the installed launcher.
+pub fn windows_install() -> Option<(PathBuf, bool)> {
+    #[cfg(windows)]
+    return win::installed();
+    #[cfg(not(windows))]
+    None
+}
+
+/// Windows: after the launcher replaced its own executable, show the new version in
+/// "Installed apps".
+pub fn record_version(version: &str) {
+    #[cfg(windows)]
+    win::record_version(version);
+    #[cfg(not(windows))]
+    let _ = version;
+}
+
+/// Windows: run `program` (a new setup) as administrator with `args`, and wait for it.
+pub fn run_elevated_program(program: &Path, args: &[&str]) -> Result<(), String> {
+    #[cfg(windows)]
+    return win::run_elevated_exe(program, args);
+    #[cfg(not(windows))]
+    {
+        let _ = (program, args);
+        Err("administrator setups exist only on Windows".into())
+    }
+}
+
 /// Size of the installed files, for the "Installed apps" entry.
 #[cfg_attr(not(windows), allow(dead_code))]
 fn size_kb(path: &Path) -> u32 {
@@ -185,14 +213,12 @@ fn size_kb(path: &Path) -> u32 {
 
 #[cfg(windows)]
 mod win {
-    use std::ffi::OsStr;
     use std::path::{Path, PathBuf};
 
     use winreg::RegKey;
     use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WRITE};
 
     use super::{NAME, Options, REG_ID, size_kb, target_dir};
-    use crate::system;
 
     const UNINSTALL: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall";
     const APP_PATHS: &str = r"Software\Microsoft\Windows\CurrentVersion\App Paths\dev-launcher.exe";
@@ -221,22 +247,24 @@ mod win {
     /// Run this executable again as administrator (UAC) with `args`, and wait for it.
     pub fn run_elevated(args: &[&str]) -> Result<(), String> {
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let q = |s: &str| s.replace('\'', "''");
-        let list = args.iter().map(|a| format!("'{}'", q(a))).collect::<Vec<_>>().join(",");
-        let script = format!(
-            "try {{ $p = Start-Process -FilePath '{}' -ArgumentList {list} -Verb RunAs -Wait -PassThru; exit $p.ExitCode }} catch {{ exit 1223 }}",
-            q(&exe.display().to_string())
-        );
-        let status = std::process::Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map_err(|e| format!("couldn't ask for administrator rights ({e})"))?;
-        match status.code() {
-            Some(0) => Ok(()),
-            Some(1223) => Err("administrator permission was refused".into()),
-            other => Err(format!("the elevated setup failed (exit {other:?})")),
+        run_elevated_exe(&exe, args)
+    }
+
+    /// Run `exe` as administrator (UAC) with `args`, and wait for it.
+    pub fn run_elevated_exe(exe: &Path, args: &[&str]) -> Result<(), String> {
+        match crate::winshell::run_as_admin(exe, args)? {
+            0 => Ok(()),
+            1223 => Err("administrator permission was refused".into()),
+            code => Err(format!("the elevated setup failed (exit {code})")),
+        }
+    }
+
+    /// Keep the "Installed apps" entry's version current after an in-place update.
+    pub fn record_version(version: &str) {
+        if let Some((_, everyone)) = installed()
+            && let Ok(k) = root(everyone).open_subkey_with_flags(format!(r"{UNINSTALL}\{REG_ID}"), KEY_WRITE)
+        {
+            let _ = k.set_value("DisplayVersion", &version.to_string());
         }
     }
 
@@ -249,18 +277,8 @@ mod win {
         if everyone { std::env::var_os("PUBLIC").map(|p| PathBuf::from(p).join("Desktop")) } else { dirs::desktop_dir() }
     }
 
-    fn shortcut(lnk: &Path, exe: &Path) {
-        let q = |p: &Path| p.display().to_string().replace('\'', "''");
-        let script = format!(
-            "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{}');$s.TargetPath='{}';$s.WorkingDirectory='{}';$s.IconLocation='{},0';$s.Description='Install, update and open the DraftCraft apps';$s.Save()",
-            q(lnk),
-            q(exe),
-            q(exe.parent().unwrap_or(exe)),
-            q(exe)
-        );
-        if let Err(e) = system::run("powershell", &[OsStr::new("-NoProfile"), OsStr::new("-NonInteractive"), OsStr::new("-Command"), OsStr::new(&script)]) {
-            log::warn!("no shortcut {}: {e}", lnk.display());
-        }
+    fn shortcut(lnk: &Path, exe: &Path) -> Result<(), String> {
+        crate::winshell::shortcut(lnk, exe, "Install, update and open the DraftCraft apps")
     }
 
     pub fn install(opts: Options) -> Result<PathBuf, String> {
@@ -279,14 +297,14 @@ mod win {
             std::fs::copy(&me, &staged).map_err(|e| format!("couldn't copy the launcher ({e})"))?;
             std::fs::rename(&staged, &exe).map_err(|e| format!("couldn't put the launcher in place ({e})"))?;
         }
-        if let Some(menu) = start_menu(opts.everyone) {
-            let _ = std::fs::create_dir_all(&menu);
-            shortcut(&menu.join(format!("{NAME}.lnk")), &exe);
-        }
-        if opts.desktop_shortcut {
-            if let Some(d) = desktop(opts.everyone) {
-                shortcut(&d.join(format!("{NAME}.lnk")), &exe);
-            }
+        // Every Windows app is in the Start menu.
+        let menu = start_menu(opts.everyone).ok_or("couldn't find the Start menu folder")?;
+        shortcut(&menu.join(format!("{NAME}.lnk")), &exe)?;
+        if opts.desktop_shortcut
+            && let Some(d) = desktop(opts.everyone)
+            && let Err(e) = shortcut(&d.join(format!("{NAME}.lnk")), &exe)
+        {
+            log::warn!("no desktop shortcut: {e}");
         }
         let root = root(opts.everyone);
         let (key, _) = root.create_subkey(format!(r"{UNINSTALL}\{REG_ID}")).map_err(|e| format!("couldn't register the launcher ({e})"))?;

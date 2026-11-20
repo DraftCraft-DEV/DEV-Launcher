@@ -31,7 +31,6 @@
 </p>
 
 <p align="center">
-  <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-6FA800?style=flat-square">
   <img alt="Written in pure Rust" src="https://img.shields.io/badge/pure-Rust-b83a24?style=flat-square&logo=rust&logoColor=white">
   <img alt="Runs on macOS, Windows and Linux" src="https://img.shields.io/badge/runs%20on-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-555555?style=flat-square">
   <img alt="x86_64 and ARM64" src="https://img.shields.io/badge/arch-x86__64%20%C2%B7%20ARM64-555555?style=flat-square">
@@ -50,7 +49,7 @@
 </p>
 
 > [!NOTE]
-> **This is a beta.** Today the launcher knows one app,
+> Today the launcher knows one app,
 > [DraftCraft™](https://github.com/DraftCraft-DEV/DraftCraft), the open-source 2D drafting app; the other
 > apps of DraftCraft Engineering Ventures will show up in it as they are released. It reads the list of
 > apps from this repository, so new ones appear without updating the launcher.
@@ -131,6 +130,10 @@ The release page also has a plain `.tar.gz` for each Linux processor and `SHA256
 - **Keeps apps up to date.** It checks for new versions when it starts and every hour, shows what's new,
   and updates in one click — or on its own, while the app is closed. A running app keeps working and
   picks up the new version when you restart it.
+- **Updates itself, too.** When a new version of the launcher is out it downloads it, checks it and puts
+  it in place on its own: no disk image to open, no setup to click through. **Restart now** in the
+  sidebar switches to it (the menu bar / tray icon switches right away). Only a machine-wide Windows
+  install or a Linux system package asks for permission first, with **Update**.
 - **Finds what's already there.** Copies you installed yourself are found too, and any earlier version
   can be installed again from the list of releases.
 

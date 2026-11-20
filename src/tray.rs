@@ -1,6 +1,7 @@
 //! The menu bar icon (macOS), notification area icon (Windows) or system tray icon (Linux):
 //! `dev-launcher --tray`. It lists the installed apps to open them in one click, and keeps
 //! checking for updates (installing them when the setting asks) while the window is closed.
+//! The launcher's own updates are always installed, quietly, when that needs no password.
 //!
 //! The icon runs on a winit event loop on the main thread; a worker thread does the slow parts
 //! (finding installs, asking GitHub, installing) and tells the loop when the menu should change.
@@ -22,7 +23,9 @@ use crate::agent::{self, Cmd, Endpoint};
 use crate::catalog::Catalog;
 use crate::i18n::{self, tr, trf};
 use crate::install::{self, Stage, Target};
+use crate::net::Release;
 use crate::platform::Platform;
+use crate::selfupdate::{self, Method};
 use crate::settings::Settings;
 use crate::ui::AppEntry;
 use crate::{assets, detect, net, system};
@@ -49,6 +52,7 @@ enum Work {
     Refresh,
     Check,
     Update(String),
+    UpdateLauncher,
 }
 
 /// An update the tray is installing.
@@ -63,6 +67,9 @@ struct State {
     apps: Vec<AppEntry>,
     checking: bool,
     busy: Option<Busy>,
+    self_method: Method,
+    /// A newer launcher.
+    self_update: Option<Release>,
 }
 
 impl State {
@@ -115,7 +122,11 @@ pub fn run() -> i32 {
 
     let platform = Platform::detect();
     let apps = Catalog::load().apps.into_iter().map(AppEntry::new).collect();
-    let state: Shared = Arc::new(Mutex::new(State { platform, settings, apps, checking: false, busy: None }));
+    let self_method = Method::detect(&platform);
+    let state: Shared = Arc::new(Mutex::new(State { platform, settings, apps, checking: false, busy: None, self_method, self_update: None }));
+    if !agent::is_running(Endpoint::Window) {
+        std::thread::spawn(selfupdate::clean_leftovers);
+    }
     let (work_tx, work_rx) = mpsc::channel();
     {
         let (state, proxy) = (state.clone(), proxy.clone());
@@ -154,6 +165,9 @@ fn worker(state: &Shared, rx: &Receiver<Work>, proxy: &EventLoopProxy<Event>) {
     let mut last_check: Option<(Instant, bool)> = None;
     // Automatic updates that failed, not to be retried every few seconds.
     let mut failed: HashSet<(String, String)> = HashSet::new();
+    let quit = || {
+        let _ = proxy.send_event(Event::Remote(Cmd::Quit));
+    };
     let mut work = Some(Work::Refresh);
     loop {
         let settings = Settings::load();
@@ -187,7 +201,15 @@ fn worker(state: &Shared, rx: &Receiver<Work>, proxy: &EventLoopProxy<Event>) {
                     log::error!("tray: updating {app}: {e}");
                 }
             }
-            _ => auto_update(state, &settings, &mut failed, &changed),
+            Some(Work::UpdateLauncher) => {
+                if update_launcher(state, &changed, &quit).is_err() {
+                    agent::show_window(None);
+                }
+            }
+            _ => {
+                auto_update_launcher(state, &mut failed, &changed, &quit);
+                auto_update(state, &settings, &mut failed, &changed);
+            }
         }
 
         work = match rx.recv_timeout(DETECT_EVERY) {
@@ -245,8 +267,80 @@ fn check_all(state: &Shared) -> bool {
             }
         }
     }
+    let (method, platform, prereleases) = {
+        let s = lock(state);
+        (s.self_method.clone(), s.platform.clone(), s.settings.prereleases)
+    };
+    match selfupdate::check(&method, &platform, prereleases) {
+        Ok(r) => lock(state).self_update = r,
+        Err(e) => {
+            log::warn!("tray: launcher releases: {e}");
+            ok = false;
+        }
+    }
     detect_all(state);
     ok
+}
+
+/// The launcher's own update, when it needs no password and the window (which does its own)
+/// is closed.
+fn auto_update_launcher(state: &Shared, failed: &mut HashSet<(String, String)>, changed: &dyn Fn(), quit: &dyn Fn()) {
+    let version = {
+        let s = lock(state);
+        match &s.self_update {
+            Some(r) if s.self_method.automatic() => r.version_label(),
+            _ => return,
+        }
+    };
+    let key = (String::new(), version);
+    if failed.contains(&key) || agent::is_running(Endpoint::Window) {
+        return;
+    }
+    if update_launcher(state, changed, quit).is_err() {
+        failed.insert(key);
+    }
+}
+
+/// Download and put in place the new launcher, then hand over to the new tray.
+fn update_launcher(state: &Shared, changed: &dyn Fn(), quit: &dyn Fn()) -> Result<(), String> {
+    let (release, method, platform) = {
+        let s = lock(state);
+        (s.self_update.clone().ok_or("no update")?, s.self_method.clone(), s.platform.clone())
+    };
+    if !method.automatic() {
+        return Err("the window asks for permission".into());
+    }
+    lock(state).busy = Some(Busy { name: "D.E.V. Launcher".into(), percent: None });
+    changed();
+    let stop = AtomicBool::new(false);
+    let mut shown = None;
+    let mut report = |t: net::Transfer| {
+        let pct = (t.total > 0).then(|| (t.done * 100 / t.total).min(100) as u8);
+        let step = pct.map(|p| p / 5);
+        if step != shown {
+            shown = step;
+            if let Some(b) = lock(state).busy.as_mut() {
+                b.percent = pct;
+            }
+            changed();
+        }
+    };
+    let result = selfupdate::apply(&release, &method, &platform, &stop, &mut report);
+    lock(state).busy = None;
+    changed();
+    match result {
+        Ok(()) => {
+            log::info!("tray: D.E.V. Launcher {} is in place, restarting", release.version_label());
+            lock(state).self_update = None;
+            selfupdate::restart_tray(&method);
+            quit();
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("tray: updating D.E.V. Launcher: {e}");
+            Err(e)
+        }
+    }
 }
 
 /// Plans that would ask for a password or administrator permission: not started from the
@@ -419,7 +513,10 @@ impl TrayApp {
             for (a, version) in &updates {
                 out.push(Some(line(format!("update:{}", a.def.id), format!("{} — {}", a.def.name, trf("Update to {}", version)), true)));
             }
-            if !updates.is_empty() {
+            if let Some(r) = &s.self_update {
+                out.push(Some(line("self-update", trf("Update D.E.V. Launcher to {}", r.version_label()), true)));
+            }
+            if !updates.is_empty() || s.self_update.is_some() {
                 out.push(None);
             }
         }
@@ -445,7 +542,7 @@ impl TrayApp {
             .join("\n");
         let badged = {
             let s = lock(&self.state);
-            s.busy.is_none() && !s.updates().is_empty()
+            s.busy.is_none() && (!s.updates().is_empty() || s.self_update.is_some())
         };
         if badged != self.badged {
             self.badged = badged;
@@ -521,6 +618,15 @@ impl TrayApp {
                 let _ = self.work.send(Work::Check);
             }
             "quit" => self.quit(event_loop),
+            "self-update" => {
+                // The window shows it (and asks for permission) when it's open or must ask.
+                let automatic = lock(&self.state).self_method.automatic();
+                if automatic && !agent::is_running(Endpoint::Window) {
+                    let _ = self.work.send(Work::UpdateLauncher);
+                } else {
+                    agent::show_window(None);
+                }
+            }
             _ => {
                 if let Some(app) = id.strip_prefix("open:") {
                     self.open(app);

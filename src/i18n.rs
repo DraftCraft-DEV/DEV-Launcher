@@ -186,6 +186,18 @@ fn italian(s: &str) -> Option<&'static str> {
         "Open your apps and get updates with this window closed." => "Apri le tue app e ricevi gli aggiornamenti anche a finestra chiusa.",
         "Start with the computer" => "Avvia all'accensione del computer",
         "Starts quietly in the background when you sign in." => "Parte in silenzio in background quando accedi.",
+        // The launcher's own update
+        "Updating to {}…" => "Aggiornamento alla {}…",
+        "Version {} is ready" => "Versione {} pronta",
+        "Version {} is available" => "Versione {} disponibile",
+        "D.E.V. Launcher {} is ready" => "D.E.V. Launcher {} è pronto",
+        "Restart to use the new version." => "Riavvialo per usare la nuova versione.",
+        "Restart now" => "Riavvia ora",
+        "Download" => "Scarica",
+        "Try again" => "Riprova",
+        "Needs administrator permission." => "Servono i permessi di amministratore.",
+        "Couldn't update D.E.V. Launcher" => "Impossibile aggiornare D.E.V. Launcher",
+        "Update D.E.V. Launcher to {}" => "Aggiorna D.E.V. Launcher alla {}",
         _ => return None,
     })
 }

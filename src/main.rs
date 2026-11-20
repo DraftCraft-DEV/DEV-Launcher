@@ -12,11 +12,14 @@ mod jobs;
 mod net;
 mod paths;
 mod platform;
+mod selfupdate;
 mod settings;
 mod setup;
 mod system;
 mod tray;
 mod ui;
+#[cfg(windows)]
+mod winshell;
 
 use std::io::Write;
 use std::sync::Mutex;
@@ -82,6 +85,8 @@ struct Cli {
     preview: Option<Preview>,
     /// Run the menu bar / tray icon instead of the window (`--tray`).
     tray: bool,
+    /// Started by the previous version after it updated itself: wait for it to quit first.
+    updated: bool,
 }
 
 fn parse_args() -> Result<Cli, String> {
@@ -98,6 +103,7 @@ fn parse_args() -> Result<Cli, String> {
             "--quiet" => cli.quiet = true,
             "--remove-data" => cli.remove_data = true,
             "--tray" => cli.tray = true,
+            "--updated" => cli.updated = true,
             "--app" => args.app = Some(it.next().ok_or("--app needs an app id")?),
             "--setup-preview" => {
                 cli.preview = Some(match it.next().as_deref() {
@@ -174,6 +180,9 @@ fn main() -> eframe::Result {
         std::process::exit(i32::from(result.is_err()));
     }
     if cli.tray {
+        if cli.updated {
+            selfupdate::wait_for_old(agent::Endpoint::Tray);
+        }
         std::process::exit(tray::run());
     }
     // macOS has no setup: the DMG is drag and drop, and the Trash uninstalls.
@@ -186,9 +195,16 @@ fn main() -> eframe::Result {
         return run_setup(mode, cli);
     }
     let args = cli.window;
+    if cli.updated {
+        selfupdate::wait_for_old(agent::Endpoint::Window);
+    }
     // One window: a second start brings the first one forward.
     if args.screenshot.is_none() && agent::send(agent::Endpoint::Window, &agent::Cmd::Show(args.app.clone())) {
         return Ok(());
+    }
+    if args.screenshot.is_none() {
+        // No older window runs now, so what earlier updates left can go.
+        std::thread::spawn(selfupdate::clean_leftovers);
     }
 
     let icon = app_icon();

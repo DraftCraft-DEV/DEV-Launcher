@@ -8,7 +8,7 @@ pub mod widgets;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use egui::{Align, Color32, CornerRadius, Layout, Margin, Rect, Sense, Stroke, StrokeKind, TextureHandle, Ui, pos2, vec2};
@@ -21,6 +21,7 @@ use crate::jobs::{self, Action, Inbox, Job, Msg, Status};
 use crate::net::Release;
 use crate::platform::{Os, Platform};
 use crate::settings::{LangPref, Settings, ThemePref};
+use crate::selfupdate::{self, Method};
 use crate::{agent, assets, system};
 use theme::{Palette, medium, regular, semibold};
 use widgets::{Icon, icon};
@@ -145,6 +146,10 @@ pub enum UiAction {
     ClearFinished,
     ClearCache,
     SettingsChanged,
+    /// Install the launcher's update (or open its page when this copy can't).
+    UpdateLauncher,
+    /// Switch to the launcher's installed update.
+    RestartLauncher,
 }
 
 /// Saves one picture of the window and closes it (`--screenshot`): for the docs and for checking
@@ -187,6 +192,20 @@ impl Screenshot {
     }
 }
 
+/// The launcher's own update.
+#[derive(Default)]
+pub struct SelfUpdate {
+    checking: bool,
+    /// A newer version on GitHub.
+    available: Option<Release>,
+    /// Being downloaded and put in place: the download's progress.
+    working: Option<Arc<Mutex<Option<f32>>>>,
+    /// In place; restarting the window switches to it.
+    ready: Option<String>,
+    /// The version whose install failed: not retried on its own until the next start.
+    failed: Option<String>,
+}
+
 pub struct Launcher {
     pub platform: Platform,
     pub settings: Settings,
@@ -209,6 +228,8 @@ pub struct Launcher {
     actions: Vec<UiAction>,
     shot: Option<Screenshot>,
     theme_override: Option<ThemePref>,
+    self_method: Method,
+    self_update: SelfUpdate,
 }
 
 const CHECK_EVERY: f64 = 60.0 * 60.0;
@@ -222,6 +243,7 @@ impl Launcher {
         i18n::set(args.lang.unwrap_or(settings.language));
         let catalog = Catalog::load();
         let platform = Platform::detect();
+        let self_method = Method::detect(&platform);
         log::info!("D.E.V. Launcher {} on {}", env!("CARGO_PKG_VERSION"), platform.label());
         let apps: Vec<AppEntry> = catalog.apps.into_iter().map(AppEntry::new).collect();
         let first = args.app.as_ref().or(settings.last_app.as_ref());
@@ -246,6 +268,8 @@ impl Launcher {
             actions: Vec::new(),
             shot: args.screenshot.map(Screenshot::new),
             theme_override: args.theme,
+            self_method,
+            self_update: SelfUpdate::default(),
             settings,
         };
         // Screenshots for the docs leave the tray and the login item alone.
@@ -253,6 +277,19 @@ impl Launcher {
             let inbox = me.inbox.clone();
             agent::listen(agent::Endpoint::Window, move |cmd| inbox.post(Msg::Remote(cmd)));
             me.apply_background();
+        }
+        // Debug builds: show the launcher's update card in screenshots.
+        if cfg!(debug_assertions) && let Ok(card) = std::env::var("DEV_LAUNCHER_TEST_CARD") {
+            let release = Release { tag: "v1.0.1".into(), ..Default::default() };
+            let u = &mut me.self_update;
+            match card.as_str() {
+                "working" => {
+                    u.available = Some(release);
+                    u.working = Some(Arc::new(Mutex::new(Some(0.42))));
+                }
+                "ready" => u.ready = Some("1.0.1".into()),
+                _ => u.available = Some(release),
+            }
         }
         jobs::catalog(&me.inbox);
         me.detect_all();
@@ -286,10 +323,80 @@ impl Launcher {
     }
 
     fn check_all(&mut self) {
+        self.check_launcher();
         for a in &mut self.apps {
             if !a.def.coming_soon && !a.checking {
                 a.checking = true;
                 jobs::releases(&self.inbox, a.def.clone());
+            }
+        }
+    }
+
+    /// Look for a newer launcher (not while one is being installed or waits for a restart).
+    fn check_launcher(&mut self) {
+        let u = &mut self.self_update;
+        if self.shot.is_some() || u.checking || u.working.is_some() || u.ready.is_some() {
+            return;
+        }
+        u.checking = true;
+        jobs::launcher_check(&self.inbox, self.self_method.clone(), self.platform.clone(), self.settings.prereleases);
+    }
+
+    /// Download and put the new launcher in place.
+    fn update_launcher(&mut self) {
+        let u = &mut self.self_update;
+        let Some(release) = u.available.clone() else { return };
+        if u.working.is_some() || u.ready.is_some() {
+            return;
+        }
+        let progress = Arc::new(Mutex::new(None));
+        u.working = Some(progress.clone());
+        jobs::launcher_apply(&self.inbox, release, self.self_method.clone(), self.platform.clone(), progress);
+    }
+
+    fn launcher_found(&mut self, result: Result<Option<Release>, String>) {
+        self.self_update.checking = false;
+        match result {
+            Ok(release) => {
+                if let Some(r) = &release {
+                    log::info!("D.E.V. Launcher {} is available", r.version_label());
+                }
+                self.self_update.available = release;
+                // The launcher keeps itself current without asking, when it can do so quietly.
+                let failed = self.self_update.available.as_ref().is_some_and(|r| self.self_update.failed.as_deref() == Some(&*r.version_label()));
+                if self.self_method.automatic() && !failed {
+                    self.update_launcher();
+                }
+            }
+            Err(e) => log::warn!("launcher releases: {e}"),
+        }
+    }
+
+    fn launcher_applied(&mut self, version: String, result: Result<(), String>, now: f64) {
+        self.self_update.working = None;
+        match result {
+            Ok(()) => {
+                log::info!("D.E.V. Launcher {version} is in place");
+                self.self_update.available = None;
+                self.self_update.ready = Some(version.clone());
+                self.toasts.push(Toast {
+                    title: trf("D.E.V. Launcher {} is ready", &version),
+                    body: tr("Restart to use the new version.").to_string(),
+                    kind: ToastKind::Success,
+                    until: now + 8.0,
+                });
+                // The tray switches to the new version right away; it has nothing to lose.
+                let (method, tray) = (self.self_method.clone(), self.settings.tray);
+                std::thread::spawn(move || {
+                    agent::send(agent::Endpoint::Tray, &agent::Cmd::Quit);
+                    if tray {
+                        selfupdate::restart_tray(&method);
+                    }
+                });
+            }
+            Err(e) => {
+                self.self_update.failed = Some(version);
+                self.toasts.push(Toast { title: tr("Couldn't update D.E.V. Launcher").into(), body: e, kind: ToastKind::Error, until: now + 12.0 });
             }
         }
     }
@@ -322,6 +429,8 @@ impl Launcher {
                 }
                 Msg::Finished { job } => self.job_finished(job, now),
                 Msg::Remote(cmd) => self.remote(cmd),
+                Msg::LauncherRelease(result) => self.launcher_found(result),
+                Msg::LauncherApplied { version, result } => self.launcher_applied(version, result, now),
             }
         }
     }
@@ -485,6 +594,17 @@ impl Launcher {
                     crate::paths::remove_any(&crate::paths::downloads_dir());
                     self.toasts.push(Toast { title: tr("Download cache cleared").into(), body: String::new(), kind: ToastKind::Info, until: now + 4.0 });
                 }
+                UiAction::UpdateLauncher => match (&self.self_method, &self.self_update.available) {
+                    (Method::Manual, Some(r)) => system::open_url(&r.html_url),
+                    _ => {
+                        self.self_update.failed = None;
+                        self.update_launcher();
+                    }
+                },
+                UiAction::RestartLauncher => match selfupdate::restart_window(&self.self_method) {
+                    Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                    Err(e) => self.toasts.push(Toast { title: tr("Couldn't update D.E.V. Launcher").into(), body: e, kind: ToastKind::Error, until: now + 10.0 }),
+                },
                 UiAction::SettingsChanged => {
                     self.settings.save();
                     i18n::set(self.settings.language);
@@ -542,7 +662,7 @@ impl eframe::App for Launcher {
         }
         self.toasts.retain(|t| t.until > now);
         // Keep the periodic checks and running jobs ticking without a busy loop.
-        let busy = self.jobs.iter().any(Job::is_running);
+        let busy = self.jobs.iter().any(Job::is_running) || self.self_update.working.is_some();
         ctx.request_repaint_after(std::time::Duration::from_millis(if busy { 100 } else { 1000 }));
         self.screenshot_step(ctx);
     }
@@ -682,7 +802,68 @@ impl Launcher {
                 icon(ui.painter(), r, Icon::Cpu, p.faint);
                 ui.label(egui::RichText::new(self.platform.label()).font(regular(11.5)).color(p.muted));
             });
+            self.launcher_card(ui);
         });
+    }
+
+    /// The launcher's own update, above the version at the bottom of the sidebar.
+    fn launcher_card(&mut self, ui: &mut Ui) {
+        let p = self.palette;
+        let u = &self.self_update;
+        enum Show {
+            Working(String, Option<f32>),
+            Ready(String),
+            Available(String, bool),
+        }
+        let show = if let Some(progress) = &u.working {
+            let version = u.available.as_ref().map(Release::version_label).unwrap_or_default();
+            Show::Working(version, progress.lock().ok().and_then(|g| *g))
+        } else if let Some(v) = &u.ready {
+            Show::Ready(v.clone())
+        } else if let Some(r) = &u.available {
+            Show::Available(r.version_label(), u.failed.is_some())
+        } else {
+            return;
+        };
+        ui.add_space(10.0);
+        let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 84.0), Sense::hover());
+        ui.painter().rect(rect, CornerRadius::same(12), p.card, Stroke::new(1.0, theme::alpha(p.accent, 90)), StrokeKind::Inside);
+        let inner = rect.shrink2(vec2(12.0, 11.0));
+        let mut ui = ui.new_child(egui::UiBuilder::new().max_rect(inner).layout(Layout::top_down(Align::Min)));
+        ui.spacing_mut().item_spacing.y = 3.0;
+        ui.label(widgets::spaced("D.E.V. Launcher", semibold(9.5), p.accent_text, 1.6));
+        let title = |ui: &mut Ui, text: String| {
+            ui.add(egui::Label::new(egui::RichText::new(text).font(semibold(12.5)).color(p.text)).truncate());
+        };
+        match show {
+            Show::Working(version, fraction) => {
+                let pct = fraction.map(|f| format!(" {:.0}%", f * 100.0)).unwrap_or_default();
+                title(&mut ui, format!("{}{pct}", trf("Updating to {}…", version)));
+                ui.add_space(9.0);
+                widgets::progress(&mut ui, &p, fraction, inner.width(), 6.0);
+            }
+            Show::Ready(version) => {
+                title(&mut ui, trf("Version {} is ready", version));
+                ui.add_space(2.0);
+                if widgets::button(&mut ui, &p, widgets::Style::Primary, Some(Icon::Refresh), tr("Restart now"), 28.0, true).clicked() {
+                    self.actions.push(UiAction::RestartLauncher);
+                }
+            }
+            Show::Available(version, failed) => {
+                title(&mut ui, trf("Version {} is available", version));
+                ui.add_space(2.0);
+                let (label, icon_kind) = match &self.self_method {
+                    Method::Manual => (tr("Download"), Icon::External),
+                    _ if failed => (tr("Try again"), Icon::Refresh),
+                    _ => (tr("Update"), Icon::Download),
+                };
+                let resp = widgets::button(&mut ui, &p, widgets::Style::Primary, Some(icon_kind), label, 28.0, true);
+                let resp = if self.self_method.needs_permission() { resp.on_hover_text(tr("Needs administrator permission.")) } else { resp };
+                if resp.clicked() {
+                    self.actions.push(UiAction::UpdateLauncher);
+                }
+            }
+        }
     }
 
     fn toasts_ui(&mut self, ui: &mut Ui) {
