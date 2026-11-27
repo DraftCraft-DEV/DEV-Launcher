@@ -193,11 +193,47 @@ pub fn mac_bundle_info(bundle: &Path) -> Option<HashMap<String, String>> {
     Some(value.as_object()?.iter().filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string()))).collect())
 }
 
+/// Which processors the app's executable runs on, read from its Mach-O header. (Not with
+/// `/usr/bin/lipo`: on a Mac without the developer tools that is only a stub, which asks to
+/// install them every time it runs.)
 fn mac_binary_arch(exe: &Path) -> Option<AssetArch> {
-    let out = Command::new("/usr/bin/lipo").arg("-archs").arg(exe).output().ok()?;
-    let archs = String::from_utf8_lossy(&out.stdout);
-    let arm = archs.split_whitespace().any(|a| a == "arm64");
-    let intel = archs.split_whitespace().any(|a| a == "x86_64");
+    use std::io::Read;
+    let mut header = Vec::new();
+    std::fs::File::open(exe).ok()?.take(MACHO_HEADER_READ).read_to_end(&mut header).ok()?;
+    macho_arch(&header)
+}
+
+/// Enough of the file for a universal binary's table of slices.
+const MACHO_HEADER_READ: u64 = 4096;
+const CPU_TYPE_X86_64: u32 = 0x0100_0007;
+const CPU_TYPE_ARM64: u32 = 0x0100_000C;
+
+/// The processors a Mach-O file (thin, or universal with 32- or 64-bit offsets) is built for.
+fn macho_arch(header: &[u8]) -> Option<AssetArch> {
+    let word = |at: usize, big: bool| -> Option<u32> {
+        let b: [u8; 4] = header.get(at..at.checked_add(4)?)?.try_into().ok()?;
+        Some(if big { u32::from_be_bytes(b) } else { u32::from_le_bytes(b) })
+    };
+    let mut cpus = Vec::new();
+    match word(0, true)? {
+        // Universal binaries keep their header big-endian.
+        magic @ (0xCAFE_BABE | 0xCAFE_BABF) => {
+            let entry = if magic == 0xCAFE_BABE { 20 } else { 32 };
+            let count = word(4, true)? as usize;
+            // Java class files start with 0xCAFEBABE too; a real universal binary has a few slices.
+            if count == 0 || count > 32 {
+                return None;
+            }
+            for i in 0..count {
+                cpus.push(word(8 + i * entry, true)?);
+            }
+        }
+        0xFEED_FACE | 0xFEED_FACF => cpus.push(word(4, true)?),
+        0xCEFA_EDFE | 0xCFFA_EDFE => cpus.push(word(4, false)?),
+        _ => return None,
+    }
+    let arm = cpus.contains(&CPU_TYPE_ARM64);
+    let intel = cpus.contains(&CPU_TYPE_X86_64);
     match (arm, intel) {
         (true, true) => Some(AssetArch::Universal),
         (true, false) => Some(AssetArch::Arm64),
@@ -423,6 +459,61 @@ mod tests {
         assert!(is_hidden_copy(Path::new("/Volumes/DraftCraft/DraftCraft.app")));
         assert!(is_hidden_copy(Path::new("/Applications/.DraftCraft-update.app")));
         assert!(!is_hidden_copy(Path::new("/Applications/DraftCraft.app")));
+    }
+
+    /// A universal binary's header: big-endian, one (cputype, subtype, offset, size, align) per slice.
+    fn fat(cpus: &[u32]) -> Vec<u8> {
+        let mut h = 0xCAFE_BABEu32.to_be_bytes().to_vec();
+        h.extend((cpus.len() as u32).to_be_bytes());
+        for &cpu in cpus {
+            for v in [cpu, 0, 0x4000, 0x1000, 14] {
+                h.extend(v.to_be_bytes());
+            }
+        }
+        h
+    }
+
+    /// A thin 64-bit executable's header, little-endian as on every Mac.
+    fn thin(cpu: u32) -> Vec<u8> {
+        let mut h = 0xFEED_FACFu32.to_le_bytes().to_vec();
+        h.extend(cpu.to_le_bytes());
+        h.extend([0; 24]);
+        h
+    }
+
+    #[test]
+    fn mach_o_architectures() {
+        assert_eq!(macho_arch(&fat(&[CPU_TYPE_X86_64, CPU_TYPE_ARM64])), Some(AssetArch::Universal));
+        assert_eq!(macho_arch(&fat(&[CPU_TYPE_ARM64])), Some(AssetArch::Arm64));
+        assert_eq!(macho_arch(&thin(CPU_TYPE_ARM64)), Some(AssetArch::Arm64));
+        assert_eq!(macho_arch(&thin(CPU_TYPE_X86_64)), Some(AssetArch::X64));
+        // A universal binary with 64-bit offsets: cputype at the start of each 32-byte entry.
+        let mut fat64 = 0xCAFE_BABFu32.to_be_bytes().to_vec();
+        fat64.extend(2u32.to_be_bytes());
+        for cpu in [CPU_TYPE_ARM64, CPU_TYPE_X86_64] {
+            fat64.extend(cpu.to_be_bytes());
+            fat64.extend([0; 28]);
+        }
+        assert_eq!(macho_arch(&fat64), Some(AssetArch::Universal));
+    }
+
+    #[test]
+    fn what_isnt_a_mac_executable_has_no_architecture() {
+        assert_eq!(macho_arch(&[]), None);
+        assert_eq!(macho_arch(b"#!/bin/sh\n"), None);
+        assert_eq!(macho_arch(&thin(0x0000_0012)), None); // PowerPC
+        // A Java class file (0xCAFEBABE, then a version number read as thousands of slices).
+        assert_eq!(macho_arch(&[0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x41]), None);
+        // A table cut short.
+        let mut cut = fat(&[CPU_TYPE_X86_64, CPU_TYPE_ARM64]);
+        cut.truncate(20);
+        assert_eq!(macho_arch(&cut), None);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_universal_system_executable_is_read_without_lipo() {
+        assert_eq!(mac_binary_arch(Path::new("/bin/ls")), Some(AssetArch::Universal));
     }
 
     #[cfg(target_os = "macos")]
